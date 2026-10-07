@@ -195,7 +195,7 @@ function FeedbackView.new(
 		end
 		local banner = Instance.new("TextLabel")
 		banner.Name = "WowBanner"
-		HudLayout.apply(banner, HudLayout.specs(HudLayout.presetFor(gui.AbsoluteSize), 0).hint)
+		HudLayout.apply(banner, HudLayout.specs(HudLayout.presetFor(gui.AbsoluteSize), 0, gui.AbsoluteSize).hint)
 		banner.BackgroundTransparency = 1
 		banner.Font = Enum.Font.GothamBlack
 		banner.TextScaled = true

@@ -1,5 +1,5 @@
 --!strict
--- Tests 105-110, 117-128: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
+-- Tests 105-110, 117-128, 132: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
 -- Test-Containern. Server-Schnappschuesse mit der Testbed-ServerConfig, Darstellung mit der ClientConfig.
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -179,7 +179,7 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			end
 		)
 
-		t.it("107 HudView: ScreenGui with touch-size buttons; buttons call exactly the matching intent", function()
+		t.it("107 HudView: compact HUD; buttons call exactly the matching intent; upgrades window on demand", function()
 			local calls: { { any } } = {}
 			local intents = {
 				collect = function()
@@ -207,6 +207,13 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				t.expect(view.gui:IsA("ScreenGui")).toBe(true)
 				t.expect(view.gui.ResetOnSpawn).toBe(false)
 
+				-- Upgrade-Fenster erst auf Knopfdruck; Umschalten sendet keine Absicht.
+				t.expect(view:windowOpen()).toBe(false)
+				t.expect(view:press("upgrades")).toBe(true)
+				t.expect(view:windowOpen()).toBe(true)
+				t.expect(view:press("upgradesClose")).toBe(true)
+				t.expect(view:windowOpen()).toBe(false)
+
 				t.expect(view:press("collect")).toBe(true)
 				t.expect(view:press("sell")).toBe(true)
 				t.expect(view:press("upgrade:range")).toBe(true)
@@ -224,15 +231,20 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 
 				local buttons = view:buttons()
 				local count = 0
-				for _, button in buttons do
+				for _ in buttons do
 					count += 1
-					-- Groessen sind Skalenwerte; die Touch-Mindestgroesse sichert der UISizeConstraint.
-					local limit = button:FindFirstChildOfClass("UISizeConstraint") :: UISizeConstraint
-					t.expect({ button.Name, button.Size.X.Offset, button.Size.Y.Offset }).toEqual({ button.Name, 0, 0 })
-					t.expect({ button.Name, limit.MinSize.Y >= HudView.MIN_TOUCH_SIZE, limit.MinSize.X >= 96 })
-						.toEqual({ button.Name, true, true })
 				end
-				t.expect(count).toBe(6) -- collect, sell, unlock, drei Upgrades
+				t.expect(count).toBe(8) -- collect, sell, unlock, upgrades, upgradesClose, drei Upgrades
+				-- Rand-Knoepfe: Skalenwerte, feste Pixelgroesse ueber UISizeConstraint, mindestens Touch-Groesse.
+				for _, name in { "collect", "sell", "unlock", "upgrades" } do
+					local button = buttons[name]
+					local limit = button:FindFirstChildOfClass("UISizeConstraint") :: UISizeConstraint
+					t.expect({ name, button.Size.X.Offset, button.Size.Y.Offset }).toEqual({ name, 0, 0 })
+					t.expect({ name, limit.MinSize.Y >= 40, limit.MinSize == limit.MaxSize })
+						.toEqual({ name, true, true })
+				end
+				-- Upgrade-Knoepfe liegen im Fenster.
+				t.expect(buttons["upgrade:range"]:IsDescendantOf(view:element("window") :: Instance)).toBe(true)
 				view:destroy()
 				t.expect(#container:GetChildren()).toBe(0)
 			end)
@@ -396,9 +408,10 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 					t.expect(view:press("upgrade:range")).toBe(false)
 					t.expect(view:press("upgrade:capacity")).toBe(false)
 					t.expect(view:press("unlock")).toBe(false)
+					-- Ein Rand-Knopf zeigt die Bedingung der naechsten Zone.
 					local unlockButton = view:buttons().unlock
 					t.expect({ unlockButton.Visible, unlockButton.Active, unlockButton.Text })
-						.toEqual({ true, false, "Freischalten" })
+						.toEqual({ true, false, "Zone B: 150 Münzen" })
 
 					local zones = table.clone(base.zones)
 					zones.zone_b = { unlocked = true, order = 2 }
@@ -425,11 +438,20 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 		)
 
 		t.it(
-			"119 HudLayout: no overlaps in 456x784, 844x390 and 1280x720; reserved zones free; views use it",
+			"119 HudLayout: compact edge HUD free of overlaps, reserved zones and screen centre in ten viewports",
 			function()
-				-- Die drei Pruef-Viewports und der im Spieltest gemessene Desktop-Viewport.
-				local viewports =
-					{ Vector2.new(456, 784), Vector2.new(844, 390), Vector2.new(1280, 720), Vector2.new(1736, 793) }
+				local viewports = {
+					Vector2.new(456, 784),
+					Vector2.new(844, 390),
+					Vector2.new(768, 1024),
+					Vector2.new(1024, 768),
+					Vector2.new(1180, 820),
+					Vector2.new(960, 600),
+					Vector2.new(1280, 720),
+					Vector2.new(1366, 768),
+					Vector2.new(1736, 793),
+					Vector2.new(1920, 1080),
+				}
 				for _, viewport in viewports do
 					for _, topInset in { 36, 58 } do
 						t.expect({ viewport, topInset, HudLayout.check(viewport, topInset, 3) })
@@ -438,18 +460,23 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				end
 				t.expect(HudLayout.presetFor(Vector2.new(456, 726))).toBe("portrait")
 				t.expect(HudLayout.presetFor(Vector2.new(844, 332))).toBe("landscape")
+				t.expect(HudLayout.presetFor(Vector2.new(768, 966))).toBe("tabletPortrait")
+				t.expect(HudLayout.presetFor(Vector2.new(960, 542))).toBe("tablet")
 				t.expect(HudLayout.presetFor(Vector2.new(1280, 662))).toBe("wide")
-				-- Spielerliste nur ab Desktop/Tablet freigehalten.
-				t.expect(HudLayout.reserved(Vector2.new(844, 332), 390).playerList).toBe(nil)
-				t.expect(HudLayout.reserved(Vector2.new(1280, 662), 720).playerList ~= nil).toBe(true)
-				for _, preset in { "portrait", "landscape", "wide" } do
-					local specs = HudLayout.specs(preset, 3)
-					for _, name in { "unlock", "collect", "sell", "upgrade1", "upgrade2", "upgrade3" } do
-						t.expect({ preset, name, specs[name].minSize.Y >= HudLayout.MIN_TOUCH_SIZE })
-							.toEqual({ preset, name, true })
-					end
-					t.expect({ preset, specs.hint.size.X <= 0.9 }).toEqual({ preset, true })
+				-- Spielerliste nur auf grossen Flaechen; Touch-Zonen nicht am Desktop.
+				local phone = HudLayout.reserved(Vector2.new(844, 332))
+				t.expect({ phone.playerList == nil, phone.jump ~= nil, phone.thumb ~= nil })
+					.toEqual({ true, true, true })
+				local desk = HudLayout.reserved(Vector2.new(1280, 662))
+				t.expect({ desk.playerList ~= nil, desk.jump == nil, desk.thumb == nil }).toEqual({ true, true, true })
+				local playerList = desk.playerList :: HudLayout.Rect
+				t.expect({ playerList.w >= 320, playerList.h >= 312 }).toEqual({ true, true })
+				-- Runde Aktionsknoepfe: am PC klein, auf dem Handy daumengross, auf dem Tablet groesser.
+				local sizes = {}
+				for _, area in { Vector2.new(1280, 662), Vector2.new(456, 726), Vector2.new(1024, 710) } do
+					table.insert(sizes, HudLayout.rects(area).collect.w)
 				end
+				t.expect(sizes).toEqual({ 56, 64, 72 })
 				-- Ueberlappung wird erkannt (Gegenprobe).
 				t.expect(HudLayout.overlaps({ x = 0, y = 0, w = 10, h = 10 }, { x = 9, y = 9, w = 5, h = 5 }))
 					.toBe(true)
@@ -464,18 +491,16 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 					local intents: any = { collect = noop, sell = noop, buyUpgrade = noop, unlockZone = noop }
 					local view = HudView.new(container, intents, ClientConfig.uiTokens)
 					view:render(HudModel.build(testbedSnapshot(), ClientConfig))
-					t.expect(view:applyLayout(Vector2.new(456, 726))).toBe("portrait")
-					local specs = HudLayout.specs("portrait", 3)
-					for _, name in
-						{ "coins", "inventory", "zoneHint", "unlock", "collect", "sell", "upgrade1", "upgrade3" }
-					do
+					local area = Vector2.new(456, 726)
+					t.expect(view:applyLayout(area)).toBe("portrait")
+					local specs = HudLayout.specs("portrait", nil, area)
+					for _, name in { "coins", "inventory", "unlock", "upgrades", "collect", "sell", "window" } do
 						local element = view:element(name) :: GuiObject
 						local s = specs[name]
-						t.expect({ name, element.Position, element.Size, element.AnchorPoint }).toEqual({
+						t.expect({ name, element.Position, element.Size }).toEqual({
 							name,
 							UDim2.fromScale(s.position.X, s.position.Y),
 							UDim2.fromScale(s.size.X, s.size.Y),
-							s.anchor,
 						})
 					end
 					t.expect(view:applyLayout(Vector2.new(1280, 662))).toBe("wide")
@@ -554,42 +579,56 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			end
 		)
 
-		t.it("123 OnboardingView: hint visible with text, beam only with character and target", function()
-			local guiParent = Instance.new("Folder")
-			local world = Instance.new("Folder")
-			world.Parent = workspace
-			local ok, err = pcall(function()
-				local view = OnboardingView.new(guiParent, world)
-				local root = Instance.new("Part")
-				root.Anchored = true
-				root.Parent = world
-				local step = OnboardingModel.DEFAULT_STEPS[1]
-				view:update(step, texts, nil, nil)
-				t.expect({ view:hint().Visible, view:hint().Text, view:beam().Enabled })
-					.toEqual({ true, texts.onboarding_collect, false })
-				t.expect(view:hint().TextScaled).toBe(true)
-				-- Ohne Bildschirmflaeche (Test-Container) gilt die Querformat-Vorlage "hint".
-				local hintSpec = HudLayout.specs("landscape", 0).hint
-				t.expect({ view:hint().Position, view:hint().Size }).toEqual({
-					UDim2.fromScale(hintSpec.position.X, hintSpec.position.Y),
-					UDim2.fromScale(hintSpec.size.X, hintSpec.size.Y),
-				})
-				view:update(step, texts, root, Vector3.new(10, 0, 0))
-				t.expect(view:beam().Enabled).toBe(true)
-				local source = view:beam().Attachment0
-				t.expect(source ~= nil and source.Parent == root).toBe(true)
-				view:update(nil, texts, root, Vector3.new(10, 0, 0))
-				t.expect({ view:hint().Visible, view:beam().Enabled }).toEqual({ false, false })
-				view:destroy()
-				t.expect(#guiParent:GetChildren()).toBe(0)
-				t.expect(#world:GetChildren()).toBe(1) -- nur noch der Wurzel-Part
-			end)
-			guiParent:Destroy()
-			world:Destroy()
-			if not ok then
-				error(err, 0)
+		t.it(
+			"123 OnboardingView: small hint at the top that hides after a few seconds; beam only with a target",
+			function()
+				local guiParent = Instance.new("Folder")
+				local world = Instance.new("Folder")
+				world.Parent = workspace
+				local ok, err = pcall(function()
+					local now = 0
+					local view = OnboardingView.new(guiParent, world, nil, function()
+						return now
+					end)
+					local root = Instance.new("Part")
+					root.Anchored = true
+					root.Parent = world
+					local step = OnboardingModel.DEFAULT_STEPS[1]
+					view:update(step, texts, nil, nil)
+					t.expect({ view:hint().Visible, view:hint().Text, view:beam().Enabled })
+						.toEqual({ true, texts.onboarding_collect, false })
+					t.expect(view:hint().TextScaled).toBe(true)
+					-- Lage aus HudLayout "hint" fuer die Flaeche, die das ScreenGui im Test-Container meldet.
+					local hintGui = view:hint().Parent :: ScreenGui
+					local area = hintGui.AbsoluteSize
+					local hintSpec = HudLayout.specs(HudLayout.presetFor(area), 0, area).hint
+					t.expect({ view:hint().Position, view:hint().Size }).toEqual({
+						UDim2.fromScale(hintSpec.position.X, hintSpec.position.Y),
+						UDim2.fromScale(hintSpec.size.X, hintSpec.size.Y),
+					})
+					view:update(step, texts, root, Vector3.new(10, 0, 0))
+					t.expect(view:beam().Enabled).toBe(true)
+					local source = view:beam().Attachment0
+					t.expect(source ~= nil and source.Parent == root).toBe(true)
+					-- Nach HINT_SECONDS verschwindet der Hinweis, der Strahl bleibt; neuer Text zeigt ihn wieder.
+					now += OnboardingView.HINT_SECONDS + 0.1
+					view:update(step, texts, root, Vector3.new(10, 0, 0))
+					t.expect({ view:hint().Visible, view:beam().Enabled }).toEqual({ false, true })
+					view:update(OnboardingModel.DEFAULT_STEPS[2], texts, root, Vector3.new(10, 0, 0))
+					t.expect(view:hint().Visible).toBe(true)
+					view:update(nil, texts, root, Vector3.new(10, 0, 0))
+					t.expect({ view:hint().Visible, view:beam().Enabled }).toEqual({ false, false })
+					view:destroy()
+					t.expect(#guiParent:GetChildren()).toBe(0)
+					t.expect(#world:GetChildren()).toBe(1) -- nur noch der Wurzel-Part
+				end)
+				guiParent:Destroy()
+				world:Destroy()
+				if not ok then
+					error(err, 0)
+				end
 			end
-		end)
+		)
 
 		t.it("124 FeedbackModel: rarest new item is found; wow from epic, legendary stronger", function()
 			local rarities: { [string]: string } = {}
@@ -659,7 +698,9 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 					local banner = view:banner() :: TextLabel
 					t.expect(banner.Text).toBe("Episch! Funkelndes Objekt")
 					-- Banner liegt auf dem Platz des Onboarding-Hinweises.
-					local hintSpec = HudLayout.specs("landscape", 0).hint
+					local bannerGui = banner.Parent :: ScreenGui
+					local bannerArea = bannerGui.AbsoluteSize
+					local hintSpec = HudLayout.specs(HudLayout.presetFor(bannerArea), 0, bannerArea).hint
 					t.expect(banner.Position).toBe(UDim2.fromScale(hintSpec.position.X, hintSpec.position.Y))
 					-- Zweiter Fund waehrend des Sichtfeld-Impulses: kein Aufsummieren, danach wieder der Basiswert.
 					view:show({ found = "Strahlendes Objekt", foundRarity = "legendary" }, texts)
@@ -854,5 +895,60 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			t.expect(#badErrors).toBe(1)
 			t.expect(Lighting.Brightness).toBe(brightness)
 		end)
+
+		t.it(
+			"132 ItemView composite shape: invisible anchor, welded visual parts, highlight on the whole shape",
+			function()
+				local container = Instance.new("Folder")
+				local ok, err = pcall(function()
+					local style = {
+						size = 2,
+						height = 1.6,
+						color = Color3.fromRGB(200, 60, 40),
+						parts = {
+							{ "Block", 2, 1, 2, 0, 0.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, "#E0702E", "Metal" },
+							{ "Cylinder", 0.6, 1, 1, 0, 1.3, 0, 0, -1, 0, 1, 0, 0, 0, 0, 1, "#2BF5E3", "Neon" },
+						},
+					}
+					local shape = {
+						instanceId = "c1",
+						itemTypeId = "shape_item",
+						zoneId = "zone_a",
+						position = Vector3.new(0, 1, 0),
+					}
+					ItemView.reconcile(container, { shape }, { shape_asset = style }, { shape_item = "shape_asset" }, {
+						rarities = { shape_item = "rare" },
+					})
+					local anchor = container:FindFirstChild("c1") :: Part
+					local scale = ItemView.DEFAULT_RARITY_STYLES.rare.scale :: number
+					t.expect({ anchor.Transparency, anchor.Anchored }).toEqual({ 1, true })
+					t.expect(math.abs(anchor.Position.Y - (1 + 1.6 * scale / 2)) < 1e-3).toBe(true)
+					local visual = anchor:FindFirstChild("Visual") :: Model
+					local pieces = visual:GetChildren()
+					t.expect(#pieces).toBe(2)
+					local first = visual:FindFirstChild("P1") :: Part
+					local second = visual:FindFirstChild("P2") :: Part
+					t.expect({ first.Material, second.Material, second.Shape }).toEqual({
+						Enum.Material.Metal,
+						Enum.Material.Neon,
+						Enum.PartType.Cylinder,
+					})
+					t.expect(math.abs(first.Size.X - 2 * scale) < 1e-3).toBe(true)
+					for _, piece in pieces do
+						local weld = piece:FindFirstChildOfClass("WeldConstraint") :: WeldConstraint
+						t.expect({ piece.Name, (piece :: Part).Anchored, weld.Part0 })
+							.toEqual({ piece.Name, false, anchor })
+					end
+					local highlight = anchor:FindFirstChildOfClass("Highlight") :: Highlight
+					t.expect(highlight.Adornee).toBe(visual)
+					ItemView.reconcile(container, {}, { shape_asset = style }, { shape_item = "shape_asset" })
+					t.expect(#container:GetChildren()).toBe(0)
+				end)
+				container:Destroy()
+				if not ok then
+					error(err, 0)
+				end
+			end
+		)
 	end)
 end

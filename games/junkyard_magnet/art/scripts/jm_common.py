@@ -41,6 +41,9 @@ PALETTE = {
     "steel_blue": "#3F72A8",
     "olive_green": "#7A9E3E",
     "sand": "#D9B98A",
+    # Ergaenzung (Bjoern): dunkle Reifen und Grau-/Metalltoene fuer gemischte Schrotthaufen.
+    "tire_black": "#2B2B2E",
+    "metal_gray": "#6E7781",
 }
 
 RARITIES = ("rusty", "chrome", "gold", "neon")
@@ -51,6 +54,12 @@ RARITY_MATERIALS = {
     "chrome": (("chrome_light", 1.0, 0.12, 0.0), ("chrome_dark", 0.8, 0.35, 0.0)),
     "gold": (("gold", 1.0, 0.25, 0.0), ("gold_deep", 1.0, 0.35, 0.0)),
     "neon": (("neon_cyan", 0.0, 0.4, 1.4), ("neon_pink", 0.0, 0.4, 3.5)),
+    # Lackierte Varianten nur fuer Kulisse (Haufen, Fass-Gruppen); keine Seltenheiten.
+    "gray": (("metal_gray", 0.6, 0.5, 0.0), ("chrome_dark", 0.6, 0.5, 0.0)),
+    "blue": (("steel_blue", 0.3, 0.5, 0.0), ("chrome_dark", 0.6, 0.5, 0.0)),
+    "green": (("olive_green", 0.2, 0.6, 0.0), ("chrome_dark", 0.6, 0.5, 0.0)),
+    "yellow": (("gold", 0.2, 0.5, 0.0), ("tire_black", 0.0, 0.8, 0.0)),
+    "red": (("magnet_red", 0.2, 0.5, 0.0), ("chrome_dark", 0.6, 0.5, 0.0)),
 }
 
 
@@ -105,6 +114,17 @@ class Builder:
         self.bm = bmesh.new()
         self.materials: list = []
         self.parent = Matrix.Identity(4)
+        # Grundformen fuer den Roblox-Ersatz aus Parts (jm_roblox.py): (art, Masse, Weltmatrix, Material)
+        self.shapes: list[dict] = []
+        self.offset = Vector((0.0, 0.0, 0.0))
+
+    def _shape(self, kind: str, dims, matrix: Matrix, mat):
+        self.shapes.append({"kind": kind, "dims": tuple(dims), "matrix": (self.parent @ matrix).copy(), "mat": mat})
+
+    def reshape_last(self, scale):
+        """Passt die zuletzt erfasste Grundform an, wenn Skripte Vertices direkt verformen (z. B. Huegel)."""
+        last = self.shapes[-1]
+        last["matrix"] = last["matrix"] @ Matrix.Diagonal((*scale, 1.0))
 
     def _slot(self, mat) -> int:
         if mat not in self.materials:
@@ -121,6 +141,7 @@ class Builder:
         return verts
 
     def box(self, size, mat, matrix: Matrix = Matrix.Identity(4), bevel: float = 0.0):
+        self._shape("Block", size, matrix, mat)
         res = bmesh.ops.create_cube(self.bm, size=1.0)
         verts = res["verts"]
         bmesh.ops.scale(self.bm, vec=Vector(size), verts=verts)
@@ -135,11 +156,13 @@ class Builder:
         return self._finish_part(verts, mat, matrix)
 
     def cylinder(self, radius, depth, sides, mat, matrix: Matrix = Matrix.Identity(4), radius_top=None):
+        self._shape("Cylinder", (max(radius, radius_top or 0.0), depth), matrix, mat)
         res = bmesh.ops.create_cone(self.bm, cap_ends=True, cap_tris=False, segments=sides, radius1=radius,
                                     radius2=radius if radius_top is None else radius_top, depth=depth)
         return self._finish_part(res["verts"], mat, matrix)
 
     def tube(self, r_out, r_in, length, sides, mat, matrix: Matrix = Matrix.Identity(4)):
+        self._shape("Cylinder", (r_out, length), matrix, mat)
         """Hohlzylinder entlang Z, mittig."""
         bm = self.bm
         rings = []
@@ -157,10 +180,25 @@ class Builder:
         return self._finish_part([v for ring in rings for v in ring], mat, matrix)
 
     def icosphere(self, radius, subdivisions, mat, matrix: Matrix = Matrix.Identity(4)):
+        self._shape("Ball", (radius,), matrix, mat)
         res = bmesh.ops.create_icosphere(self.bm, subdivisions=subdivisions, radius=radius)
         return self._finish_part(res["verts"], mat, matrix)
 
     def sweep(self, path, profile, mat, matrix: Matrix = Matrix.Identity(4)):
+        # Fuer den Roblox-Ersatz: je Pfadabschnitt ein Quader (Laenge entlang des Pfads).
+        width = 2 * max(abs(a) for a, _ in profile)
+        depth = 2 * max(abs(b) for _, b in profile)
+        for k in range(len(path) - 1):
+            p0, p1 = Vector(path[k]), Vector(path[k + 1])
+            t = (p1 - p0)
+            if t.length < 1e-6:
+                continue
+            t = t.normalized()
+            y = Vector((0.0, 1.0, 0.0))
+            z = t.cross(y)
+            rot = Matrix((t, y, z)).transposed().to_4x4()
+            seg = Matrix.Translation((p0 + p1) / 2) @ rot
+            self._shape("Block", ((p1 - p0).length + 0.05, depth, width), matrix @ seg, mat)
         """Profil (Liste von (a, b)) entlang eines Pfads in der XZ-Ebene; a = Normale in der Ebene, b = Y."""
         bm = self.bm
         rings = []
@@ -190,6 +228,7 @@ class Builder:
         zs = [v.co.z for v in bm.verts]
         offset = Vector((-(min(xs) + max(xs)) / 2, -(min(ys) + max(ys)) / 2, -min(zs)))
         bmesh.ops.translate(bm, vec=offset, verts=bm.verts)
+        self.offset = offset
         mesh = bpy.data.meshes.new(self.name)
         bm.to_mesh(mesh)
         bm.free()

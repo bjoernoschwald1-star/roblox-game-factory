@@ -5,7 +5,7 @@
 --
 -- Text-Schluessel (aus config.texts, Platzhalter in {}): hud_coins {coins}, hud_inventory {count} {capacity},
 -- hud_full, hud_level {level} {maxLevel}, hud_cost {cost}, hud_max, hud_zone_purchase {zone} {cost},
--- hud_zone_level {zone} {upgrade} {level}, hud_zone_coins {zone} {amount}, hud_zone_all, hud_unlock, hud_collect,
+-- hud_zone_level {zone} {upgrade} {level}, hud_zone_coins {zone} {amount}, hud_zone_all, hud_unlock, hud_upgrades (Standard "Upgrades"), hud_collect,
 -- hud_sell. Die Zonen-Bedingung steht nur einmal (zoneText); der Unlock-Button traegt den kurzen Text hud_unlock.
 local Text = require(script.Parent.Text)
 
@@ -27,6 +27,7 @@ export type Model = {
 	zoneText: string,
 	canUnlock: boolean,
 	unlockText: string,
+	upgradesText: string,
 	sellEnabled: boolean,
 	collectEnabled: boolean,
 	collectText: string,
@@ -116,6 +117,7 @@ function HudModel.build(snapshot: any, config: any, texts: { [string]: string }?
 		zoneText = zoneText,
 		canUnlock = canUnlock,
 		unlockText = Text.lookup(strings, "hud_unlock"),
+		upgradesText = if strings.hud_upgrades ~= nil then strings.hud_upgrades else "Upgrades",
 		sellEnabled = snapshot.inventoryCount > 0,
 		-- Nur Anzeige: volles Inventar lehnt der Server ohnehin ab.
 		collectEnabled = not full,

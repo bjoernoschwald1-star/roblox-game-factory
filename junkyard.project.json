@@ -1,0 +1,43 @@
+{
+  "name": "junkyard-magnet",
+  "globIgnorePaths": ["core/src/testing/**"],
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "FactoryCore": {
+        "$path": "core/src"
+      },
+      "JunkyardServer": {
+        "$path": "games/junkyard_magnet/server"
+      }
+    },
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "FactoryClient": {
+        "$path": "core/client"
+      },
+      "FactoryKit": {
+        "$path": "kit/src"
+      },
+      "JunkyardShared": {
+        "$path": "games/junkyard_magnet/shared"
+      }
+    },
+    "TextChatService": {
+      "$className": "TextChatService",
+      "$properties": {
+        "ChatVersion": "TextChatService"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "JunkyardClient": {
+          "$path": "games/junkyard_magnet/client"
+        }
+      }
+    }
+  }
+}

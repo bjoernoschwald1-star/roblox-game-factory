@@ -7,7 +7,12 @@
 -- ergaenzt die Seltenheitsdarstellung des Games um DEFAULT_RARITY_STYLES; pose(base, style, phase, now) -> CFrame.
 -- Darstellung: reconcile(container, items, assetStyles, itemAssets, options?) mit assetStyles[asset] =
 -- { shape = "Block" | "Ball" | "Cylinder", color = Color3, size = number }; itemAssets[itemTypeId] = asset.
--- Unbekannter Asset-Schluessel -> kleiner grauer Wuerfel. options.rarities[itemTypeId] = Seltenheit,
+-- Unbekannter Asset-Schluessel -> kleiner grauer Wuerfel.
+-- Zusammengesetzte Formen (optional assetStyles[asset].parts, z. B. aus Blender erzeugt): Liste von Zeilen
+-- { Form, sx, sy, sz, px, py, pz, R00..R22, Farbe (Hex), Material } relativ zum Drehpunkt Mitte unten, dazu
+-- height (Studs). Dann ist der Item-Part ein unsichtbarer, verankerter Anker in der Mitte; die sichtbaren
+-- Teile haengen per WeldConstraint daran (bewegen sich mit animate und Sog) und liegen in einem Model
+-- "Visual", das auch das Highlight umfasst. Keine Unions, keine Assets. options.rarities[itemTypeId] = Seltenheit,
 -- options.rarityStyles = Darstellung je Seltenheit (Game), options.limits = Effekt-Deckel,
 -- options.onRemove(part) -> true uebernimmt einen entfernten Part (z. B. Sog-Animation) statt ihn zu zerstoeren.
 -- animate(container, now) bewegt Items mit Schwebe-/Drehbewegung (Aufruf je Frame aus dem Client).
@@ -34,6 +39,8 @@ export type AssetStyle = {
 	shape: string?,
 	color: Color3?,
 	size: number?,
+	parts: { { any } }?,
+	height: number?,
 }
 
 export type RarityStyle = {
@@ -173,6 +180,50 @@ local function countEffects(container: Instance): Limits
 	return counts
 end
 
+-- Baut die sichtbaren Teile einer zusammengesetzten Form an den Anker (Drehpunkt Mitte unten).
+local function buildVisual(anchor: Part, style: AssetStyle, scale: number, bottom: CFrame): Model
+	local visual = Instance.new("Model")
+	visual.Name = "Visual"
+	for index, row in style.parts :: { { any } } do
+		local piece = Instance.new("Part")
+		piece.Name = "P" .. index
+		piece.Shape = SHAPES[row[1]] or Enum.PartType.Block
+		piece.Size = Vector3.new(row[2], row[3], row[4]) * scale
+		piece.CFrame = bottom
+			* CFrame.new(
+				row[5] * scale,
+				row[6] * scale,
+				row[7] * scale,
+				row[8],
+				row[9],
+				row[10],
+				row[11],
+				row[12],
+				row[13],
+				row[14],
+				row[15],
+				row[16]
+			)
+		piece.Color = Color3.fromHex(row[17])
+		local found, material = pcall(function()
+			return (Enum.Material :: any)[row[18]]
+		end)
+		piece.Material = if found and typeof(material) == "EnumItem" then material else Enum.Material.SmoothPlastic
+		piece.Anchored = false
+		piece.CanCollide = false
+		piece.CanQuery = false
+		piece.CanTouch = false
+		piece.Massless = true
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = anchor
+		weld.Part1 = piece
+		weld.Parent = piece
+		piece.Parent = visual
+	end
+	visual.Parent = anchor
+	return visual
+end
+
 local function createPart(
 	item: Item,
 	style: AssetStyle,
@@ -182,7 +233,10 @@ local function createPart(
 	counts: Limits,
 	limits: Limits
 ): Part
-	local size = (style.size or FALLBACK_STYLE.size :: number) * (rarityStyle.scale or 1)
+	local scale = rarityStyle.scale or 1
+	local size = (style.size or FALLBACK_STYLE.size :: number) * scale
+	local composite = style.parts ~= nil and #(style.parts :: { any }) > 0
+	local height = if composite then (style.height or size) * scale else size
 	local color = style.color or FALLBACK_STYLE.color :: Color3
 	local accent = rarityStyle.accent or color
 	local part = Instance.new("Part")
@@ -200,8 +254,15 @@ local function createPart(
 	part.CanQuery = false
 	part.CanTouch = false
 	-- Item-Position ist ein Punkt auf der Oberseite der Zone; das Objekt steht darauf.
-	local base = item.position + Vector3.new(0, size / 2, 0)
+	local base = item.position + Vector3.new(0, height / 2, 0)
 	part.Position = base
+	local visual: Model? = nil
+	if composite then
+		part.Shape = Enum.PartType.Block
+		part.Size = Vector3.new(size, height, size)
+		part.Transparency = 1
+		visual = buildVisual(part, style, scale, CFrame.new(item.position))
+	end
 	part:SetAttribute("itemTypeId", item.itemTypeId)
 	part:SetAttribute("rarity", rarity)
 	local bob = rarityStyle.bob or 0
@@ -220,6 +281,9 @@ local function createPart(
 		highlight.FillTransparency = 0.75
 		highlight.OutlineColor = accent
 		highlight.OutlineTransparency = 0
+		if visual ~= nil then
+			highlight.Adornee = visual
+		end
 		highlight.Parent = part
 	end
 	if rarityStyle.light and counts.lights < limits.lights then

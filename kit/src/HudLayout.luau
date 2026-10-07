@@ -1,19 +1,29 @@
 --!strict
--- Reine Layout-Logik des HUD (Mobile zuerst). Alle Positionen und Groessen sind Skalenwerte (UDim2.fromScale)
--- relativ zur GUI-Flaeche; UISizeConstraint begrenzt Min-/Maxgroesse in Pixeln (Touch-Ziele mindestens
--- MIN_TOUCH_SIZE hoch). Die GUI-Flaeche ist der CoreUISafeInsets-Bereich (ScreenGui.ScreenInsets, Standard bei
--- IgnoreGuiInset = false): ohne Topbar und Geraete-Aussparungen.
+-- Reine Layout-Logik des HUD: kompakt an den Raendern, Bildschirmmitte frei (Vorbild: verbreitete Simulator-HUDs).
+-- Alle Positionen und Groessen sind Skalenwerte relativ zur GUI-Flaeche (UDim2.fromScale); UISizeConstraint haelt
+-- die Pixelgroesse fest (Min = Max), damit Knoepfe am PC klein und auf dem Handy daumengross sind. Die GUI-Flaeche
+-- ist der CoreUISafeInsets-Bereich (ScreenGui.ScreenInsets bei IgnoreGuiInset = false): ohne Topbar.
 --
--- Drei Vorlagen nach Groesse der Flaeche: "portrait" (Hochformat-Handy), "landscape" (Querformat-Handy) und "wide"
--- (Flaeche ab 1000 px Breite, z. B. Desktop). Freihaltezonen (reserved): Chat oben links, Sprungknopf unten rechts,
--- Thumbstick unten links und - ab einer kleineren Bildschirmkante ueber 500 px (Desktop/Tablet, wo die Roblox-
--- Spielerliste mit leaderstats standardmaessig offen ist) - die Spielerliste oben rechts (340 px breit). Die Doku
--- nennt fuer die Touch-Steuerung nur "a portion of the bottom-left and bottom-right corners" und fuer das
--- Chatfenster keine Pixelgroesse; die Zonen hier sind daher bewusst grosszuegig gewaehlt und werden im Spieltest
--- gegen die echten AbsoluteSize-Werte (ChatWindowConfiguration, TouchGui.JumpButton) geprueft.
--- Entscheidung Aktions-Buttons: rechts ueber dem Sprungknopf (Hochformat) bzw. rechts oben neben dem Inventar
--- (Querformat). Der rechte Daumen liegt ohnehin dort (Sprung); links bleibt fuer den Thumbstick frei, und Buttons
--- im Thumbstick-Bereich wuerden Laufbewegungen abfangen.
+-- Vorlagen nach Groesse der GUI-Flaeche (klein = kleinere Kante <= 500 px, also Handy):
+--   "portrait" / "landscape" (Handy), "tabletPortrait" / "tablet" (kleinere Kante > 500 px, Breite < 1240 px) und
+--   "wide" (ab 1240 px Breite: Laptop/Desktop ohne Touch-Steuerung).
+-- Freihaltezonen (reserved), in GUI-Koordinaten:
+--   Chat oben links: min(500, 0,5 x Breite) x min(260, 0,35 x Hoehe). Gemessen im Studio-Spieltest mit
+--     TextChatService (1736x793): Chatfenster 8,12 / 475x184, Eingabeleiste 16,196 / 459x45.
+--   Spielerliste oben rechts (nur grosse Flaechen): 340 x 340, gemessen 320 x 312.
+--   Sprungknopf unten rechts (110 bzw. 230 px) und Thumbstick unten links (0,4 x kleinere Kante, 150-260 px) nur
+--     auf Touch-Flaechen (alle Vorlagen ausser "wide"); die Doku nennt nur "a portion of the bottom-left and
+--     bottom-right corners".
+-- Anordnung:
+--   Anzeigen (Muenzen, Ladung) kompakt rechts neben dem Chat; ist dort zu wenig Platz, unter dem Chat.
+--   Hinweis: klein, oben (neben bzw. unter den Anzeigen), nie in der Bildschirmmitte; OnboardingView blendet ihn
+--     nach einigen Sekunden aus.
+--   Aktionen (Einsammeln, Verkaufen): runde Knoepfe unten rechts, auf Touch-Flaechen direkt links neben dem
+--     Sprungknopf. Groesse 56 px (PC), 64 px (Handy), 72 px (Tablet).
+--   Rand-Knoepfe "unlock" (Zone freischalten) und "upgrades" (oeffnet das Upgrade-Fenster): unten links, auf
+--     Touch-Flaechen rechts neben dem Thumbstick bzw. (Handy hoch) ueber ihm.
+--   Upgrade-Fenster ("window"): mittig, nur auf Knopfdruck sichtbar; es ist modal und gehoert nicht zur
+--     Ueberlappungspruefung.
 -- Doku: https://create.roblox.com/docs/ui/position-and-size#reserved-zones
 --       https://create.roblox.com/docs/reference/engine/classes/ScreenGui#ScreenInsets
 --       https://create.roblox.com/docs/reference/engine/classes/UISizeConstraint
@@ -29,81 +39,145 @@ export type Spec = {
 
 export type Rect = { x: number, y: number, w: number, h: number }
 
-local MIN_TOUCH_SIZE = 64
-local INF = math.huge
-local LABEL_MAX = Vector2.new(360, 48)
-local BUTTON_MAX = Vector2.new(360, 80)
+local MIN_TOUCH_SIZE = 56
+local MARGIN = 8
+local SMALL_EDGE = 500
+local WIDE_WIDTH = 1240
+local PLAYER_LIST = 340
+
+-- Beispielflaechen, wenn specs ohne Flaeche aufgerufen wird (z. B. im Test-Container).
+local DEFAULT_AREAS: { [string]: Vector2 } = {
+	portrait = Vector2.new(456, 726),
+	landscape = Vector2.new(844, 332),
+	tabletPortrait = Vector2.new(768, 966),
+	tablet = Vector2.new(1024, 710),
+	wide = Vector2.new(1280, 662),
+}
 
 local HudLayout = {}
 
 HudLayout.MIN_TOUCH_SIZE = MIN_TOUCH_SIZE
-HudLayout.BUTTONS = { "unlock", "collect", "sell" } -- dazu upgrade:<dim>
-
-local function spec(
-	px: number,
-	py: number,
-	sx: number,
-	sy: number,
-	ax: number,
-	ay: number,
-	minX: number,
-	minY: number,
-	max: Vector2
-): Spec
-	return {
-		position = Vector2.new(px, py),
-		size = Vector2.new(sx, sy),
-		anchor = Vector2.new(ax, ay),
-		minSize = Vector2.new(minX, minY),
-		maxSize = max,
-	}
-end
+HudLayout.ELEMENTS = { "coins", "inventory", "hint", "unlock", "upgrades", "collect", "sell" }
 
 function HudLayout.presetFor(area: Vector2): string
-	if area.X > 0 and area.Y > 0 and area.X < area.Y then
-		return "portrait"
+	if math.min(area.X, area.Y) <= SMALL_EDGE then
+		return if area.X > 0 and area.X < area.Y then "portrait" else "landscape"
 	end
-	return if area.X >= 1000 then "wide" else "landscape"
+	if area.X >= WIDE_WIDTH then
+		return "wide"
+	end
+	return if area.X < area.Y then "tabletPortrait" else "tablet"
 end
 
--- Vorlagen je Element: coins, inventory, zoneHint, unlock, collect, sell, hint, upgrade1..n.
-function HudLayout.specs(preset: string, upgradeCount: number): { [string]: Spec }
-	local specs: { [string]: Spec } = {}
-	if preset == "portrait" then
-		specs.coins = spec(0.98, 0.01, 0.5, 0.06, 1, 0, 180, 36, LABEL_MAX)
-		specs.inventory = spec(0.98, 0.08, 0.5, 0.06, 1, 0, 180, 36, LABEL_MAX)
-		specs.zoneHint = spec(0.98, 0.15, 0.5, 0.05, 1, 0, 180, 30, LABEL_MAX)
-		specs.unlock = spec(0.98, 0.21, 0.5, 0.09, 1, 0, 160, MIN_TOUCH_SIZE, BUTTON_MAX)
-		specs.hint = spec(0.5, 0.32, 0.9, 0.08, 0.5, 0, 0, 48, Vector2.new(INF, 80))
-		specs.collect = spec(0.98, 0.735, 0.4, 0.09, 1, 1, 140, MIN_TOUCH_SIZE, BUTTON_MAX)
-		specs.sell = spec(0.98, 0.835, 0.4, 0.09, 1, 1, 140, MIN_TOUCH_SIZE, BUTTON_MAX)
-		for index = 1, upgradeCount do
-			specs["upgrade" .. index] =
-				spec(0.02, 0.42 + (index - 1) * 0.09, 0.46, 0.085, 0, 0, 150, MIN_TOUCH_SIZE, BUTTON_MAX)
-		end
-	elseif preset == "wide" then
-		-- Rechter Block links neben der Spielerliste, linker Block rechts neben dem Chat.
-		specs.zoneHint = spec(0.52, 0.02, 0.2, 0.075, 1, 0, 150, 36, LABEL_MAX)
-		specs.unlock = spec(0.52, 0.105, 0.2, 0.12, 1, 0, 150, MIN_TOUCH_SIZE, BUTTON_MAX)
-		specs.coins = spec(0.725, 0.02, 0.2, 0.075, 1, 0, 150, 36, LABEL_MAX)
-		specs.inventory = spec(0.725, 0.105, 0.2, 0.075, 1, 0, 150, 36, LABEL_MAX)
-		specs.collect = spec(0.623, 0.2, 0.098, 0.12, 1, 0, 96, MIN_TOUCH_SIZE, BUTTON_MAX)
-		specs.sell = spec(0.725, 0.2, 0.098, 0.12, 1, 0, 96, MIN_TOUCH_SIZE, BUTTON_MAX)
-	else
-		specs.zoneHint = spec(0.72, 0.02, 0.26, 0.11, 1, 0, 150, 36, LABEL_MAX)
-		specs.unlock = spec(0.72, 0.15, 0.26, 0.2, 1, 0, 150, MIN_TOUCH_SIZE, BUTTON_MAX)
-		specs.coins = spec(0.98, 0.02, 0.25, 0.11, 1, 0, 150, 36, LABEL_MAX)
-		specs.inventory = spec(0.98, 0.15, 0.25, 0.11, 1, 0, 150, 36, LABEL_MAX)
-		specs.collect = spec(0.855, 0.28, 0.125, 0.2, 1, 0, 96, MIN_TOUCH_SIZE, BUTTON_MAX)
-		specs.sell = spec(0.98, 0.28, 0.12, 0.2, 1, 0, 96, MIN_TOUCH_SIZE, BUTTON_MAX)
+-- Freihaltezonen in der GUI-Flaeche (Werte und Quellen im Kopfkommentar).
+function HudLayout.reserved(area: Vector2): { [string]: Rect }
+	local edge = math.min(area.X, area.Y)
+	local zones: { [string]: Rect } = {
+		chat = { x = 0, y = 0, w = math.min(500, 0.5 * area.X), h = math.min(260, 0.35 * area.Y) },
+	}
+	if HudLayout.presetFor(area) ~= "wide" then
+		local jump = if edge <= SMALL_EDGE then 110 else 230
+		local thumb = math.clamp(0.4 * edge, 150, 260)
+		zones.jump = { x = area.X - jump, y = area.Y - jump, w = jump, h = jump }
+		zones.thumb = { x = 0, y = area.Y - thumb, w = thumb, h = thumb }
 	end
-	if preset ~= "portrait" then
-		specs.hint = spec(0.5, 0.52, 0.56, 0.15, 0.5, 0, 0, 48, Vector2.new(INF, 80))
-		local width = 0.6 / math.max(upgradeCount, 1)
-		for index = 1, upgradeCount do
-			specs["upgrade" .. index] =
-				spec(0.21 + (index - 1) * width, 0.97, width - 0.01, 0.2, 0, 1, 96, MIN_TOUCH_SIZE, BUTTON_MAX)
+	if edge > SMALL_EDGE then
+		zones.playerList = { x = area.X - PLAYER_LIST, y = 0, w = PLAYER_LIST, h = PLAYER_LIST }
+	end
+	return zones
+end
+
+-- Pixel-Rechtecke aller Elemente fuer eine Flaeche (Grundlage fuer specs).
+function HudLayout.rects(area: Vector2): { [string]: Rect }
+	local preset = HudLayout.presetFor(area)
+	local zones = HudLayout.reserved(area)
+	local touch = preset ~= "wide"
+	local phone = math.min(area.X, area.Y) <= SMALL_EDGE
+	local labelH = if touch then 34 else 30
+	local action = if not touch then 56 elseif phone then 64 else 72
+	local buttonH = if touch then 56 else 40
+	local chat = zones.chat
+	local right = area.X - (if zones.playerList then PLAYER_LIST else 0) - MARGIN
+	local rects: { [string]: Rect } = {}
+
+	-- Anzeigen
+	local span = right - (chat.w + MARGIN)
+	local sx, sw, sy
+	if span >= 110 then
+		sx, sw, sy = chat.w + MARGIN, math.min(180, span), MARGIN
+	else
+		sx, sw, sy = MARGIN, 170, chat.h + MARGIN
+	end
+	rects.coins = { x = sx, y = sy, w = sw, h = labelH }
+	rects.inventory = { x = sx, y = sy + labelH + 4, w = sw, h = labelH }
+	local statsBottom = sy + 2 * labelH + 4
+
+	-- Hinweis
+	local hintH = 30
+	if span >= sw + MARGIN + 200 then
+		local hx = sx + sw + MARGIN
+		rects.hint = { x = hx, y = sy, w = math.min(440, right - hx), h = hintH }
+	elseif span >= 300 then
+		local hw = math.min(440, span)
+		rects.hint = { x = chat.w + MARGIN + (span - hw) / 2, y = statsBottom + 6, w = hw, h = hintH }
+	else
+		local hy = math.max(chat.h, statsBottom) + 6
+		local limit = math.min(right, area.X / 2 - 58)
+		if limit - MARGIN >= 220 then
+			rects.hint = { x = MARGIN, y = hy, w = math.min(440, limit - MARGIN), h = hintH }
+		else
+			local avail = right - MARGIN
+			local hw = math.min(440, avail)
+			rects.hint = { x = MARGIN + (avail - hw) / 2, y = hy, w = hw, h = hintH }
 		end
+	end
+
+	-- Aktionen und Rand-Knoepfe
+	local bottom = area.Y - MARGIN
+	if touch then
+		local jumpX = zones.jump.x
+		rects.sell = { x = jumpX - MARGIN - action, y = bottom - action, w = action, h = action }
+		rects.collect = { x = jumpX - 2 * (MARGIN + action), y = bottom - action, w = action, h = action }
+		local buttonW = if phone then 96 else 110
+		local left = zones.thumb.w + MARGIN
+		if rects.collect.x - MARGIN - left >= 2 * buttonW + MARGIN then
+			rects.unlock = { x = left, y = bottom - buttonH, w = buttonW, h = buttonH }
+			rects.upgrades = { x = left + buttonW + MARGIN, y = bottom - buttonH, w = buttonW, h = buttonH }
+		else
+			local top = zones.thumb.y - MARGIN
+			rects.upgrades = { x = MARGIN, y = top - buttonH, w = buttonW, h = buttonH }
+			rects.unlock = { x = MARGIN, y = top - 2 * buttonH - MARGIN, w = buttonW, h = buttonH }
+		end
+	else
+		rects.sell = { x = area.X - MARGIN - action, y = bottom - action, w = action, h = action }
+		rects.collect = { x = area.X - 2 * (MARGIN + action), y = bottom - action, w = action, h = action }
+		rects.unlock = { x = MARGIN, y = bottom - buttonH, w = 150, h = buttonH }
+		rects.upgrades = { x = 2 * MARGIN + 150, y = bottom - buttonH, w = 120, h = buttonH }
+	end
+	-- Upgrade-Fenster mittig (modal, nicht Teil der Pruefung)
+	local windowW = math.min(420, area.X - 2 * MARGIN)
+	local windowH = math.min(360, area.Y - 2 * MARGIN)
+	rects.window = { x = (area.X - windowW) / 2, y = (area.Y - windowH) / 2, w = windowW, h = windowH }
+	return rects
+end
+
+-- Vorlagen je Element (Skalenwerte plus feste Pixelgroesse); area optional (sonst Beispielflaeche der Vorlage).
+function HudLayout.specs(preset: string, _upgradeCount: number?, area: Vector2?): { [string]: Spec }
+	local surface = area
+	if surface == nil or surface.X <= 0 or surface.Y <= 0 then
+		surface = DEFAULT_AREAS[preset] or DEFAULT_AREAS.landscape
+	end
+	local resolved = surface :: Vector2
+	local specs: { [string]: Spec } = {}
+	for name, r in HudLayout.rects(resolved) do
+		local size = Vector2.new(r.w, r.h)
+		specs[name] = {
+			position = Vector2.new(r.x / resolved.X, r.y / resolved.Y),
+			size = Vector2.new(r.w / resolved.X, r.h / resolved.Y),
+			anchor = Vector2.zero,
+			minSize = size,
+			maxSize = size,
+		}
 	end
 	return specs
 end
@@ -120,23 +194,6 @@ function HudLayout.resolve(s: Spec, area: Vector2): Rect
 	}
 end
 
--- Freihaltezonen in der GUI-Flaeche. screenMin = kleinere Bildschirmkante (Touch-Steuerung skaliert damit).
-function HudLayout.reserved(area: Vector2, screenMin: number): { [string]: Rect }
-	local chatW = math.min(0.45 * area.X, 400)
-	local chatH = math.clamp(0.3 * area.Y, 140, 250)
-	local jump = if screenMin <= 500 then 110 else 230
-	local thumb = math.clamp(0.4 * screenMin, 150, 260)
-	local zones: { [string]: Rect } = {
-		chat = { x = 0, y = 0, w = chatW, h = chatH },
-		jump = { x = area.X - jump, y = area.Y - jump, w = jump, h = jump },
-		thumb = { x = 0, y = area.Y - thumb, w = thumb, h = thumb },
-	}
-	if screenMin > 500 then
-		zones.playerList = { x = area.X - 340, y = 0, w = 340, h = math.clamp(0.35 * area.Y, 150, 300) }
-	end
-	return zones
-end
-
 function HudLayout.overlaps(a: Rect, b: Rect): boolean
 	return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
 end
@@ -150,20 +207,22 @@ local function sortedKeys(map: { [string]: any }): { string }
 	return keys
 end
 
--- Prueft ein Bildschirmformat: liefert alle Konflikte ("a/b") zwischen Elementen, mit Freihaltezonen und mit dem
--- Bildschirmrand. topInset = Hoehe der Topbar (GuiService:GetGuiInset), die nicht zur GUI-Flaeche gehoert.
-function HudLayout.check(viewport: Vector2, topInset: number, upgradeCount: number): { string }
+-- Prueft ein Bildschirmformat: alle Konflikte ("a/b") zwischen Elementen, mit Freihaltezonen, mit dem Rand und mit
+-- der Bildschirmmitte ("center", Figur). topInset = Hoehe der Topbar (GuiService:GetGuiInset).
+function HudLayout.check(viewport: Vector2, topInset: number, upgradeCount: number?): { string }
 	local area = Vector2.new(viewport.X, viewport.Y - topInset)
-	local specs = HudLayout.specs(HudLayout.presetFor(area), upgradeCount)
+	local specs = HudLayout.specs(HudLayout.presetFor(area), upgradeCount, area)
 	local rects: { [string]: Rect } = {}
-	for name, s in specs do
-		rects[name] = HudLayout.resolve(s, area)
+	for _, name in HudLayout.ELEMENTS do
+		rects[name] = HudLayout.resolve(specs[name], area)
 	end
+	local zones = HudLayout.reserved(area)
+	zones.center = { x = area.X / 2 - 50, y = viewport.Y / 2 - topInset - 40, w = 100, h = 120 }
 	local names = sortedKeys(rects)
 	local problems: { string } = {}
 	for i, a in names do
 		local r = rects[a]
-		if r.x < 0 or r.y < 0 or r.x + r.w > area.X or r.y + r.h > area.Y then
+		if r.x < 0 or r.y < 0 or r.x + r.w > area.X + 1e-6 or r.y + r.h > area.Y + 1e-6 then
 			table.insert(problems, a .. "/screen")
 		end
 		for j = i + 1, #names do
@@ -171,7 +230,6 @@ function HudLayout.check(viewport: Vector2, topInset: number, upgradeCount: numb
 				table.insert(problems, a .. "/" .. names[j])
 			end
 		end
-		local zones = HudLayout.reserved(area, math.min(viewport.X, viewport.Y))
 		for _, zone in sortedKeys(zones) do
 			if HudLayout.overlaps(r, zones[zone]) then
 				table.insert(problems, a .. "/" .. zone)

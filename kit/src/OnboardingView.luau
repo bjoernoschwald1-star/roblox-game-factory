@@ -25,7 +25,21 @@ export type OnboardingView = {
 
 local OnboardingView = {}
 
-function OnboardingView.new(guiParent: Instance, worldParent: Instance, color: Color3?): OnboardingView
+-- Der Hinweis ist klein und oben (HudLayout "hint"); er erscheint bei jedem neuen Text und verschwindet nach
+-- HINT_SECONDS wieder (der Strahl bleibt). clock ist injizierbar (Test).
+local HINT_SECONDS = 6
+
+OnboardingView.HINT_SECONDS = HINT_SECONDS
+
+function OnboardingView.new(
+	guiParent: Instance,
+	worldParent: Instance,
+	color: Color3?,
+	clock: (() -> number)?
+): OnboardingView
+	local now = clock or os.clock
+	local shownText: string? = nil
+	local shownAt = 0
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "FactoryOnboarding"
 	gui.ResetOnSpawn = false
@@ -41,8 +55,8 @@ function OnboardingView.new(guiParent: Instance, worldParent: Instance, color: C
 	hint.TextScaled = true
 	hint.Visible = false
 	local sizeLimit = Instance.new("UITextSizeConstraint")
-	sizeLimit.MaxTextSize = 22
-	sizeLimit.MinTextSize = 11
+	sizeLimit.MaxTextSize = 18
+	sizeLimit.MinTextSize = 10
 	sizeLimit.Parent = hint
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0.2, 0)
@@ -54,7 +68,7 @@ function OnboardingView.new(guiParent: Instance, worldParent: Instance, color: C
 	hint.Parent = gui
 	local function layout()
 		local area = gui.AbsoluteSize
-		HudLayout.apply(hint, HudLayout.specs(HudLayout.presetFor(area), 0).hint)
+		HudLayout.apply(hint, HudLayout.specs(HudLayout.presetFor(area), 0, area).hint)
 	end
 	layout()
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
@@ -90,8 +104,13 @@ function OnboardingView.new(guiParent: Instance, worldParent: Instance, color: C
 			root: BasePart?,
 			targetPosition: Vector3?
 		)
-			hint.Visible = step ~= nil
-			hint.Text = if step ~= nil then Text.lookup(texts, step.textKey) else ""
+			local text = if step ~= nil then Text.lookup(texts, step.textKey) else ""
+			if text ~= shownText then
+				shownText = text
+				shownAt = now()
+			end
+			hint.Text = text
+			hint.Visible = step ~= nil and now() - shownAt < HINT_SECONDS
 			if step == nil or root == nil or targetPosition == nil then
 				beam.Enabled = false
 				return
