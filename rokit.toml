@@ -1,0 +1,7 @@
+# Gepinnte Toolchain fuer den Phase-0-Spike (installiert via `rokit install`).
+# rojo 7.7.1 / selene 0.32.0 werden lokal von Windows Smart App Control blockiert,
+# daher die jeweils neueste lauffaehige Version.
+[tools]
+rojo = "rojo-rbx/rojo@7.6.1"
+stylua = "JohnnyMorganz/StyLua@2.5.2"
+selene = "Kampfkarren/selene@0.31.0"

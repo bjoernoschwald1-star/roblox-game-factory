@@ -1,0 +1,60 @@
+name: spike
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - spike/phase-0
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spike
+  cancel-in-progress: false
+
+jobs:
+  spike:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ROBLOX_CI_API_KEY: ${{ secrets.ROBLOX_CI_API_KEY }}
+      ROBLOX_CI_UNIVERSE_ID: ${{ secrets.ROBLOX_CI_UNIVERSE_ID }}
+      ROBLOX_CI_PLACE_ID: ${{ secrets.ROBLOX_CI_PLACE_ID }}
+      ROBLOX_STAGING_API_KEY: ${{ secrets.ROBLOX_STAGING_API_KEY }}
+      ROBLOX_STAGING_UNIVERSE_ID: ${{ secrets.ROBLOX_STAGING_UNIVERSE_ID }}
+      ROBLOX_STAGING_PLACE_ID: ${{ secrets.ROBLOX_STAGING_PLACE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Rokit
+        run: |
+          curl -sSL -o rokit.zip https://github.com/rojo-rbx/rokit/releases/download/v1.2.0/rokit-1.2.0-linux-x86_64.zip
+          unzip -q rokit.zip && ./rokit self-install && rm rokit rokit.zip
+          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+
+      - name: Install Rokit tools
+        run: rokit install --no-trust-check
+
+      - name: Format check
+        run: stylua --check src
+
+      - name: Lint
+        run: selene src
+
+      - name: Build
+        run: python tools/spike/build.py
+
+      - name: Selfcheck (green passes, red fails)
+        run: python tools/spike/selfcheck.py
+
+      - name: Publish to staging
+        run: python tools/spike/publish.py --target staging
+
+      - name: Check secrets
+        if: always()
+        run: python tools/spike/check_secrets.py

@@ -1,0 +1,5 @@
+.env
+build/
+*.rbxl
+*.rbxlx
+__pycache__/

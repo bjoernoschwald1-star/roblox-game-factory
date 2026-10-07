@@ -1,0 +1,12 @@
+{
+  "name": "factory-spike",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Spike": {
+        "$path": "src"
+      }
+    }
+  }
+}
