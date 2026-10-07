@@ -464,6 +464,21 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			t.expect(countByZone(instancesOf(capped, A)).zone_a).toBe(2)
 		end)
 
+		t.it("44 corrupt inventory gives CORRUPT_VALUE; without profile still NOT_LOADED", function()
+			local env = newEnv()
+			env.positions.zone_a = { Vector3.new(1, 0, 0) }
+			env.collecting:startPlayer(A)
+			env.profiles[A.userId].inventory = { item_a1 = -1 }
+			local corrupt = env.collecting:collect(A, ORIGIN)
+			t.expect({ corrupt.err, #corrupt.collected }).toEqual({ "CORRUPT_VALUE", 0 })
+			t.expect(env.profiles[A.userId].inventory).toEqual({ item_a1 = -1 })
+
+			env.profiles[A.userId] = nil
+			local missing = env.collecting:collect(A, ORIGIN)
+			t.expect({ missing.err, #missing.collected }).toEqual({ "NOT_LOADED", 0 })
+			t.expect(#instancesOf(env, A)).toBe(5)
+		end)
+
 		t.it("24 constructor: zone with density > 0 and no items fails, density 0 without items is allowed", function()
 			local function zonesWith(extra: { density: number, respawnSeconds: number }): { [string]: any }
 				local zones: { [string]: any } = table.clone(ZONES)

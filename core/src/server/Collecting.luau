@@ -5,8 +5,8 @@
 --
 -- collect prueft immer im Core: Kandidat des Spielers, Zone frei, Reichweite (getRange + rangeTolerance),
 -- freier Inventarplatz und Rate-Limit - unabhaengig davon, was der Collect-Typ zurueckgibt.
--- Fehlercodes (err): NOT_STARTED, NOT_LOADED (auch bei beschaedigtem Inventar), INVALID_ORIGIN,
--- COLLECT_TYPE_ERROR, FULL, RATE_LIMITED. onCollected laeuft in pcall; Fehler werden nur per warn gemeldet.
+-- Fehlercodes (err): NOT_STARTED, NOT_LOADED, CORRUPT_VALUE (beschaedigtes Inventar, ueber inventory:status),
+-- INVALID_ORIGIN, COLLECT_TYPE_ERROR, FULL, RATE_LIMITED. onCollected laeuft in pcall; Fehler werden nur per warn gemeldet.
 local CollectType = require(script.Parent.CollectTypes.CollectType)
 local Inventory = require(script.Parent.Inventory)
 local PlayerContext = require(script.Parent.Parent.shared.PlayerContext)
@@ -301,7 +301,8 @@ function Collecting.new(options: Options): Collecting
 			end
 			local free = inventory:freeSpace(ctx)
 			if free == nil then
-				return result({}, 0, "NOT_LOADED")
+				local status = inventory:status(ctx)
+				return result({}, 0, if status == "CORRUPT_VALUE" then "CORRUPT_VALUE" else "NOT_LOADED")
 			end
 			if not isFiniteVector(origin) then
 				return result({}, 0, "INVALID_ORIGIN")

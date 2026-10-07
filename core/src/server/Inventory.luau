@@ -5,6 +5,7 @@
 -- Wie im ProfileStore wird ein vorhandener Stand nie still ueberschrieben: Fehlt das Feld, gilt das Inventar
 -- als leer und wird angelegt. Ist das Feld keine Tabelle oder enthaelt es einen ungueltigen Eintrag, liefern
 -- count, freeSpace, contents und clear nil, add liefert CORRUPT_VALUE, und nichts wird veraendert.
+-- status(ctx) unterscheidet "OK", "NOT_LOADED" und "CORRUPT_VALUE".
 --
 -- Fehlercodes: NOT_LOADED, INVALID_ITEM, INVALID_AMOUNT, CORRUPT_VALUE, FULL.
 local PlayerContext = require(script.Parent.Parent.shared.PlayerContext)
@@ -21,7 +22,10 @@ export type Options = {
 	getCapacity: (ctx: PlayerContext) -> number,
 }
 
+export type Status = "OK" | "NOT_LOADED" | "CORRUPT_VALUE"
+
 export type Inventory = {
+	status: (self: Inventory, ctx: PlayerContext) -> Status,
 	count: (self: Inventory, ctx: PlayerContext) -> number?,
 	freeSpace: (self: Inventory, ctx: PlayerContext) -> number?,
 	contents: (self: Inventory, ctx: PlayerContext) -> Contents?,
@@ -92,6 +96,14 @@ function Inventory.new(options: Options): Inventory
 	end
 
 	local inventory: Inventory = {
+		status = function(_self, ctx: PlayerContext): Status
+			local profile = getProfile(ctx)
+			if profile == nil then
+				return "NOT_LOADED"
+			end
+			return if bag(profile) ~= nil then "OK" else "CORRUPT_VALUE"
+		end,
+
 		count = function(_self, ctx: PlayerContext): number?
 			local contents = loadedBag(ctx)
 			return if contents ~= nil then total(contents) else nil

@@ -84,7 +84,7 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			t.expect(env.inventory:clear({ userId = 999 })).toBe(nil)
 		end)
 
-		t.it("21 corrupt inventory is never repaired: reads nil, add CORRUPT_VALUE, collect NOT_LOADED", function()
+		t.it("21 corrupt inventory is never repaired: reads nil, add CORRUPT_VALUE, collect CORRUPT_VALUE", function()
 			local cases: { { label: string, value: any } } = {
 				{ label = "number", value = 5 },
 				{ label = "zero count", value = { item_a = 0 } },
@@ -127,7 +127,7 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				t.expect({ label, ok, err }).toEqual({ label, false, "CORRUPT_VALUE" })
 				t.expect({ label, env.inventory:clear(CTX) }).toEqual({ label })
 				local result = collecting:collect(CTX, Vector3.new(0, 0, 0))
-				t.expect({ label, result.err, #result.collected }).toEqual({ label, "NOT_LOADED", 0 })
+				t.expect({ label, result.err, #result.collected }).toEqual({ label, "CORRUPT_VALUE", 0 })
 				t.expect({ label, profile.inventory }).toEqual({ label, snapshot })
 			end
 		end)
