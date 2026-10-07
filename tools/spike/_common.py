@@ -20,6 +20,8 @@ LOG_DIR = BUILD_DIR / "logs"
 PLACE_FILE = BUILD_DIR / "spike.rbxl"
 
 SECRET_VARS = ("ROBLOX_CI_API_KEY", "ROBLOX_STAGING_API_KEY")
+# Optionale Schluessel (z. B. nur lokal fuer Asset-Uploads); fehlen sie, ist das kein Fehler.
+OPTIONAL_SECRET_VARS = ("ROBLOX_ASSETS_API_KEY",)
 TARGETS = {
     "ci": ("ROBLOX_CI_API_KEY", "ROBLOX_CI_UNIVERSE_ID", "ROBLOX_CI_PLACE_ID"),
     "staging": ("ROBLOX_STAGING_API_KEY", "ROBLOX_STAGING_UNIVERSE_ID", "ROBLOX_STAGING_PLACE_ID"),
@@ -66,6 +68,16 @@ def env(name: str) -> str:
 def secret_values() -> list[str]:
     values = []
     for name in SECRET_VARS:
+        value = os.environ.get(name) or _dotenv().get(name)
+        if value:
+            values.append(value)
+    return values
+
+
+def optional_secret_values() -> list[str]:
+    """Werte der OPTIONAL_SECRET_VARS, die in Umgebung oder .env gesetzt sind (fehlende werden ausgelassen)."""
+    values = []
+    for name in OPTIONAL_SECRET_VARS:
         value = os.environ.get(name) or _dotenv().get(name)
         if value:
             values.append(value)
