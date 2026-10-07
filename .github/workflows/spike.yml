@@ -49,6 +49,9 @@ jobs:
       - name: Core boundary
         run: python tools/core_boundary.py
 
+      - name: Tooling tests
+        run: python -m unittest discover -s tools/spike -p "test_*.py"
+
       - name: Build
         run: python tools/spike/build.py
 

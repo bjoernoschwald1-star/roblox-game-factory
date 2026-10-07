@@ -36,3 +36,15 @@ Voraussetzungen: Rokit, Python 3, `.env` mit den sechs `ROBLOX_*`-Variablen.
 7. `python tools/spike/check_secrets.py` – Exit ≠ 0, falls ein API-Schlüssel in Repo-Dateien oder Logs auftaucht
 
 Der CI-Place darf beim Upload nicht in Studio geöffnet sein (sonst HTTP 409).
+
+## Hängende Tasks und Tooling-Tests
+
+Erreicht eine Luau-Execution-Task nach ihrem Zeitlimit (180 s) plus 60 s keinen Endzustand, ersetzt
+`run_tests.py` sie genau einmal durch eine neue Task für dieselbe Suite auf derselben Place-Version und meldet das
+mit `[spike] task <id> hung (state=…), retrying once`; hängt auch die zweite, endet der Lauf mit Exit 2.
+Ein Testergebnis (bestanden oder fehlgeschlagen), ein Roblox-Fehlerzustand und 401/403 werden nie wiederholt,
+damit ein Rot-Nachweis nicht durch Wiederholen verschwinden kann. Zwischen zwei Task-Erstellungen liegen
+mindestens 13 Sekunden.
+
+Diese Logik ist offline getestet (gefälschte HTTP-Antworten, injizierte Uhr, keine Zugangsdaten nötig):
+`python -m unittest discover -s tools/spike -p "test_*.py"` – läuft in der CI als Schritt „Tooling tests“ vor dem Build.
