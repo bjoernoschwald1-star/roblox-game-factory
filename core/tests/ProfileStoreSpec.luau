@@ -294,5 +294,37 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			t.expect(env.memory:peek("profile_202").session).toBe(nil)
 			t.expect(session:get(CTX)).toBe(nil)
 		end)
+
+		t.it(
+			"48 PlayerSession:save stores a single profile; NOT_LOADED without profile; LOCK_LOST passed on",
+			function()
+				local env = newEnv()
+				local session = PlayerSession.new({
+					store = env.store("server-a"),
+					onLoadFailed = function() end,
+				})
+				session:join(CTX)
+				session:join({ userId = 202 })
+				local profileA = session:get(CTX) :: ProfileStore.Profile
+				local profileB = session:get({ userId = 202 }) :: ProfileStore.Profile
+				profileA.points = 3
+				profileB.points = 8
+
+				t.expect({ session:save(CTX) }).toEqual({ true })
+				t.expect(env.memory:peek(KEY).points).toBe(3)
+				-- Nur dieses eine Profil wurde gespeichert.
+				t.expect(env.memory:peek("profile_202").points).toBe(0)
+
+				local missingOk, missingErr = session:save({ userId = 999 })
+				t.expect({ missingOk, missingErr }).toEqual({ false, "NOT_LOADED" })
+
+				local taken = env.memory:peek(KEY)
+				taken.session = { serverId = "server-b", timestamp = env.now }
+				env.memory:seed(KEY, taken)
+				local lostOk, lostErr = session:save(CTX)
+				t.expect({ lostOk, lostErr }).toEqual({ false, "LOCK_LOST" })
+				t.expect(env.memory:peek(KEY)).toEqual(taken)
+			end
+		)
 	end)
 end

@@ -23,6 +23,7 @@ export type SaveReport = {
 export type PlayerSession = {
 	join: (self: PlayerSession, ctx: PlayerContext) -> LoadResult,
 	get: (self: PlayerSession, ctx: PlayerContext) -> Profile?,
+	save: (self: PlayerSession, ctx: PlayerContext) -> (boolean, string?),
 	autosaveAll: (self: PlayerSession) -> SaveReport,
 	leave: (self: PlayerSession, ctx: PlayerContext) -> (boolean, string?),
 	shutdown: (self: PlayerSession) -> SaveReport,
@@ -88,6 +89,16 @@ function PlayerSession.new(options: Options): PlayerSession
 		get = function(_self, ctx: PlayerContext): Profile?
 			local entry = entries[ctx.userId]
 			return if entry ~= nil then entry.profile else nil
+		end,
+
+		-- Speichert genau dieses geladene Profil (z. B. direkt nach einem Kauf); Fehler des Stores werden
+		-- durchgereicht ("LOCK_LOST", "STORAGE_ERROR: ...").
+		save = function(_self, ctx: PlayerContext): (boolean, string?)
+			local entry = entries[ctx.userId]
+			if entry == nil then
+				return false, "NOT_LOADED"
+			end
+			return store:save(entry.ctx, entry.profile)
 		end,
 
 		autosaveAll = function(_self): SaveReport

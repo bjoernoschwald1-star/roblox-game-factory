@@ -4,8 +4,9 @@
 --
 -- value(ctx, stat) = (base + Summe aller add) * Produkt aller mul, nie negativ und nie NaN.
 -- Quellen laufen in pcall und in fester Reihenfolge (nach Name sortiert). Eine werfende Quelle oder ein
--- ungueltiger Eintrag (add/mul nicht endlich, mul < 0) wird fuer diesen Stat ignoriert und per warn gemeldet.
--- Unbekannte Stats und doppelte Quellennamen sind Programmierfehler (assert).
+-- ungueltiger Eintrag (add/mul nicht endlich, mul < 0) wird fuer diesen Stat ignoriert und gedrosselt per Log
+-- gemeldet (key = Quellenname + Stat). Unbekannte Stats und doppelte Quellennamen sind Programmierfehler (assert).
+local Log = require(script.Parent.Parent.shared.Log)
 local PlayerContext = require(script.Parent.Parent.shared.PlayerContext)
 
 type PlayerContext = PlayerContext.PlayerContext
@@ -19,6 +20,7 @@ export type Source = (ctx: PlayerContext) -> { [string]: Effect }
 
 export type Options = {
 	base: { [string]: number },
+	log: Log.Log?,
 }
 
 export type Modifiers = {
@@ -48,6 +50,7 @@ function Modifiers.new(options: Options): Modifiers
 	end
 
 	local sources: { Registered } = {}
+	local log = options.log or Log.new()
 
 	local modifiers: Modifiers = {
 		registerSource = function(_self, name: string, source: Source)
@@ -72,10 +75,11 @@ function Modifiers.new(options: Options): Modifiers
 			local add, mul = 0, 1
 			for _, registered in sources do
 				local ok, effects = pcall(registered.source, ctx)
+				local key = registered.name .. ":" .. stat
 				if not ok then
-					warn("[Modifiers] source " .. registered.name .. " failed: " .. tostring(effects))
+					log:warnThrottled(key, "[Modifiers] source " .. registered.name .. " failed: " .. tostring(effects))
 				elseif type(effects) ~= "table" then
-					warn("[Modifiers] source " .. registered.name .. " returned no table")
+					log:warnThrottled(key, "[Modifiers] source " .. registered.name .. " returned no table")
 				else
 					local effect = effects[stat]
 					if effect ~= nil then
@@ -86,7 +90,10 @@ function Modifiers.new(options: Options): Modifiers
 							add += effect.add or 0
 							mul *= effect.mul or 1
 						else
-							warn("[Modifiers] source " .. registered.name .. " returned an invalid effect for " .. stat)
+							log:warnThrottled(
+								key,
+								"[Modifiers] source " .. registered.name .. " returned an invalid effect for " .. stat
+							)
 						end
 					end
 				end
