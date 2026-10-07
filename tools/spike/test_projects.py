@@ -1,18 +1,23 @@
-"""Tooling-Test 114: Inhalt der beiden Rojo-Projekte ueber die Sourcemap.
+"""Tooling-Tests 114 und 131: Inhalt der beiden Rojo-Projekte ueber die Sourcemap, Grenzen der Client-Config.
 
 - testbed.project.json (Staging): kein FactoryCoreTests, kein Spike, kein Test-Hilfsordner; mit Server- und
-  Client-Skript des Testbeds.
-- default.project.json (CI-Place): Tests und Spike, aber kein Testbed-Server- oder Client-Skript.
-Braucht rojo im PATH (in der CI aus Rokit); ohne rojo wird der Test uebersprungen.
+  Client-Skript des Testbeds. ServerConfig nur in ServerScriptService, ClientConfig in ReplicatedStorage.
+- default.project.json (CI-Place): Tests und Spike, aber kein Testbed-Server- oder Client-Skript; World und
+  ServerConfig nur als ModuleScripts im Testeintrag ServerScriptService.TestbedServerUnderTest.
+- ClientConfig.luau eines Games enthaelt keine Schluessel products, passes, remotes, sim, productId, passId, price,
+  spawnWeight (gleiche Liste wie Luau-Test 116).
+Die Sourcemap-Tests brauchen rojo im PATH (in der CI aus Rokit); ohne rojo werden sie uebersprungen.
 """
 
 import json
+import re
 import shutil
 import subprocess
 import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SERVER_ONLY_KEYS = ("products", "passes", "remotes", "sim", "productId", "passId", "price", "spawnWeight")
 
 
 def sourcemap(project: str) -> dict:
@@ -53,6 +58,28 @@ class ProjectsTest(unittest.TestCase):
         self.assertNotIn("factory-spike/StarterPlayer", paths)
         for folder in ("FactoryClient", "FactoryKit", "TestbedShared"):
             self.assertIn(f"factory-spike/ReplicatedStorage/{folder}", paths)
+        under_test = "factory-spike/ServerScriptService/TestbedServerUnderTest"
+        self.assertIn((f"{under_test}/World", "ModuleScript"), tree)
+        self.assertIn((f"{under_test}/ServerConfig", "ModuleScript"), tree)
+        self.assertNotIn("factory-spike/ServerScriptService/TestbedWorld", paths)
+
+    def test_131_server_config_only_on_the_server(self):
+        tree = instances(sourcemap("testbed.project.json"))
+        server_configs = [path for path, _ in tree if path.endswith("/ServerConfig")]
+        self.assertEqual(server_configs, ["factory-testbed/ServerScriptService/TestbedServer/ServerConfig"])
+        self.assertIn(("factory-testbed/ReplicatedStorage/TestbedShared/ClientConfig", "ModuleScript"), tree)
+        replicated = [path for path, _ in tree if path.startswith("factory-testbed/ReplicatedStorage/")]
+        self.assertFalse([path for path in replicated if path.endswith("/Config") or "ServerConfig" in path])
+
+
+class ClientConfigTest(unittest.TestCase):
+    def test_131_client_configs_have_no_server_only_keys(self):
+        files = sorted(REPO_ROOT.glob("games/*/shared/ClientConfig.luau"))
+        self.assertTrue(files, "keine ClientConfig.luau gefunden")
+        pattern = re.compile(r"(?<![\w.])(" + "|".join(SERVER_ONLY_KEYS) + r")\s*=")
+        for path in files:
+            code = "\n".join(line.split("--", 1)[0] for line in path.read_text(encoding="utf-8").splitlines())
+            self.assertEqual(pattern.findall(code), [], str(path.relative_to(REPO_ROOT)))
 
 
 if __name__ == "__main__":

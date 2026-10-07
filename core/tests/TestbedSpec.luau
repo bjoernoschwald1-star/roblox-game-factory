@@ -1,6 +1,8 @@
 --!strict
--- Tests 111-113: Testbed-Game (Config, Welt-Aufbau, Server-Start ohne echte Spieler). Die Start-Skripte selbst
--- laufen hier nicht (LocalScripts gibt es in Luau Execution nicht; das Server-Skript liegt nicht im CI-Build).
+-- Tests 111-113, 116: Testbed-Game (Config, Welt-Aufbau, Server-Start ohne echte Spieler, Grenzen der
+-- Client-Config). Die Start-Skripte selbst laufen hier nicht (LocalScripts gibt es in Luau Execution nicht; das
+-- Server-Skript liegt nicht im CI-Build). World und ServerConfig kommen aus dem CI-Testeintrag
+-- ServerScriptService.TestbedServerUnderTest (nur ModuleScripts).
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FactoryCore = ServerScriptService.FactoryCore
@@ -14,10 +16,24 @@ local PlayersAdapter = require(FactoryCore.server.Engine.PlayersAdapter)
 local Scheduler = require(FactoryCore.server.Engine.Scheduler)
 local Log = require(FactoryCore.shared.Log)
 local OnboardingModel = require(ReplicatedStorage.FactoryKit.OnboardingModel)
-local Testbed = require(ReplicatedStorage.TestbedShared.Config)
-local World = require(ServerScriptService.TestbedWorld)
+local ClientConfig = require(ReplicatedStorage.TestbedShared.ClientConfig)
+local ServerConfig = require(ServerScriptService.TestbedServerUnderTest.ServerConfig)
+local World = require(ServerScriptService.TestbedServerUnderTest.World)
 
-local config = Testbed.config
+local config: any = ServerConfig
+local SERVER_ONLY_KEYS = { "products", "passes", "remotes", "sim", "productId", "passId", "price", "spawnWeight" }
+
+-- Sammelt alle Schluessel einer Tabelle rekursiv (Pfad -> Schluessel).
+local function allKeys(value: any, path: string, found: { string })
+	if type(value) ~= "table" then
+		return
+	end
+	for key, child in value do
+		local here = path .. "." .. tostring(key)
+		table.insert(found, here)
+		allKeys(child, here, found)
+	end
+end
 
 local HUD_KEYS = {
 	"hud_coins",
@@ -30,6 +46,7 @@ local HUD_KEYS = {
 	"hud_zone_level",
 	"hud_zone_coins",
 	"hud_zone_all",
+	"hud_unlock",
 	"hud_collect",
 	"hud_sell",
 	"feedback_collected",
@@ -37,6 +54,15 @@ local HUD_KEYS = {
 	"feedback_upgraded",
 	"feedback_unlocked",
 	"feedback_full",
+	"feedback_found",
+	"hint_full",
+	"rarity_common",
+	"rarity_rare",
+	"rarity_epic",
+	"rarity_legendary",
+	"leaderstats_coins",
+	"leaderstats_zone",
+	"sign_sell",
 	"system_load_failed",
 }
 
@@ -75,8 +101,23 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			)
 
 			for itemId, item in config.items do
-				t.expect({ itemId, Testbed.assetStyles[item.asset] ~= nil }).toEqual({ itemId, true })
+				t.expect({ itemId, ClientConfig.assetStyles[item.asset] ~= nil }).toEqual({ itemId, true })
 			end
+			-- Seltene Stufen: je Zone kleineres Gewicht und hoeherer Preis als jede gewoehnliche Stufe der Zone.
+			local rarityCount: { [string]: number } = {}
+			for itemId, item in config.items do
+				local rarity = item.rarity or "common"
+				rarityCount[rarity] = (rarityCount[rarity] or 0) + 1
+				if rarity ~= "common" then
+					for otherId, other in config.items do
+						if other.zoneId == item.zoneId and (other.rarity or "common") == "common" then
+							t.expect({ itemId, otherId, item.spawnWeight < other.spawnWeight, item.price > other.price })
+								.toEqual({ itemId, otherId, true, true })
+						end
+					end
+				end
+			end
+			t.expect(rarityCount).toEqual({ common = 4, rare = 3, epic = 3, legendary = 3 })
 			local keys = table.clone(HUD_KEYS)
 			for _, step in OnboardingModel.DEFAULT_STEPS do
 				table.insert(keys, step.textKey)
@@ -220,7 +261,43 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 						collected,
 					})
 					runtime:stop()
+					-- Nach stop feuern keine Scheduler-Aufrufe mehr: kein Nachfuellen, kein Zustand.
+					runtime.game:dispatch(ctx, "collect")
+					local itemsAfterStop = #(runtime.game.modules.collecting:instances(ctx) :: { any })
+					scheduler:advance(10)
+					t.expect(#fired).toBe(1)
+					t.expect(#(runtime.game.modules.collecting:instances(ctx) :: { any })).toBe(itemsAfterStop)
 				end)
+			end
+		)
+
+		t.it(
+			"116 client config: only visible data, no server-only keys; server config extends it consistently",
+			function()
+				local keys: { string } = {}
+				allKeys(ClientConfig, "ClientConfig", keys)
+				local forbidden: { string } = {}
+				for _, path in keys do
+					local last = string.match(path, "%.([^%.]+)$")
+					if last ~= nil and table.find(SERVER_ONLY_KEYS, last) ~= nil then
+						table.insert(forbidden, path)
+					end
+				end
+				t.expect(forbidden).toEqual({})
+				t.expect({ next(config.products), next(config.passes) }).toEqual({})
+				t.expect(config.texts).toBe(ClientConfig.texts)
+				for itemId, display in ClientConfig.items do
+					local item = config.items[itemId]
+					t.expect({ itemId, item.zoneId, item.asset, item.nameKey, item.rarity })
+						.toEqual({ itemId, display.zoneId, display.asset, display.nameKey, display.rarity })
+				end
+				for zoneId, display in ClientConfig.zones do
+					t.expect({ zoneId, config.zones[zoneId].order, config.zones[zoneId].condition })
+						.toEqual({ zoneId, display.order, display.condition })
+				end
+				for dimension in config.upgrades do
+					t.expect({ dimension, ClientConfig.upgrades[dimension] ~= nil }).toEqual({ dimension, true })
+				end
 			end
 		)
 	end)

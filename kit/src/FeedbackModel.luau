@@ -3,6 +3,10 @@
 -- { collected = n, earned = coins, upgraded = dimension, unlocked = zoneId, full = true }. Nur vorhandene
 -- Ereignisse stehen in der Tabelle; gleiche Schnappschuesse ergeben eine leere Tabelle. Welche Darstellung zu
 -- welchem Ereignis gehoert, legt die Effekt-Tabelle des Games fest (Erweiterungspunkt Feedback-Profil).
+-- Seltenheit (optional rarities = { [itemTypeId] = "common" | "rare" | "epic" | "legendary" }): found ist der neu
+-- ins Inventar gekommene Itemtyp mit der hoechsten Seltenheit ueber common, foundRarity dessen Stufe.
+-- wowLevel(rarity): 0 = keine Einblendung, 1 = epic, 2 = legendary (staerker). Alles kommt aus dem Vergleich
+-- zweier Schnappschuesse, es gibt keine eigene Remote.
 
 export type Events = {
 	collected: number?,
@@ -10,9 +14,27 @@ export type Events = {
 	upgraded: string?,
 	unlocked: string?,
 	full: boolean?,
+	found: string?,
+	foundRarity: string?,
 }
 
+local RARITY_RANK: { [string]: number } = { common = 1, rare = 2, epic = 3, legendary = 4 }
+
 local FeedbackModel = {}
+
+FeedbackModel.RARITY_RANK = RARITY_RANK
+
+function FeedbackModel.rank(rarity: string?): number
+	return RARITY_RANK[rarity or "common"] or 1
+end
+
+function FeedbackModel.wowLevel(rarity: string?): number
+	return math.max(FeedbackModel.rank(rarity) - 2, 0)
+end
+
+function FeedbackModel.isWow(rarity: string?): boolean
+	return FeedbackModel.wowLevel(rarity) > 0
+end
 
 local function firstSorted(map: { [string]: boolean }): string?
 	local keys = {}
@@ -23,7 +45,31 @@ local function firstSorted(map: { [string]: boolean }): string?
 	return keys[1]
 end
 
-function FeedbackModel.compare(old: any, new: any): Events
+-- Hoechste Seltenheit unter den neu hinzugekommenen Itemtypen (bei Gleichstand der alphabetisch erste).
+local function bestFound(old: any, new: any, rarities: { [string]: string }): string?
+	if type(new.inventory) ~= "table" then
+		return nil
+	end
+	local before = if type(old.inventory) == "table" then old.inventory else {}
+	local gained = {}
+	for itemTypeId, count in new.inventory do
+		if count > (before[itemTypeId] or 0) then
+			table.insert(gained, itemTypeId)
+		end
+	end
+	table.sort(gained)
+	local bestId: string? = nil
+	local bestRank = 1
+	for _, itemTypeId in gained do
+		local itemRank = FeedbackModel.rank(rarities[itemTypeId])
+		if itemRank > bestRank then
+			bestId, bestRank = itemTypeId, itemRank
+		end
+	end
+	return bestId
+end
+
+function FeedbackModel.compare(old: any, new: any, rarities: { [string]: string }?): Events
 	local events: Events = {}
 	if old == nil or new == nil then
 		return events
@@ -53,6 +99,13 @@ function FeedbackModel.compare(old: any, new: any): Events
 	local wasFull = old.inventoryCount >= old.capacity
 	if not wasFull and new.inventoryCount >= new.capacity then
 		events.full = true
+	end
+	if rarities ~= nil then
+		local found = bestFound(old, new, rarities)
+		if found ~= nil then
+			events.found = found
+			events.foundRarity = rarities[found]
+		end
 	end
 	return events
 end

@@ -11,6 +11,14 @@
 -- Remote "stateUpdate" (nur an den jeweiligen Spieler).
 -- Shutdown (BindToClose, Roblox wartet hoechstens 30 s): alle Spieler werden parallel abgemeldet und freigegeben;
 -- nach shutdownBudgetSeconds werden nicht freigegebene Spieler per warn gemeldet.
+-- Ohne Paesse in der Config (passes = {}) gibt es keinen Pass-Prompt-Handler; ownsPass wird dann nie gefragt.
+-- Der Receipt-Handler bleibt immer gesetzt (unbekannte Produkte -> NotProcessedYet wie bisher).
+--
+-- Rangliste (leaderstats): Ordner "leaderstats" mit IntValue Muenzen und StringValue hoechste freie Zone (Name aus
+-- texts leaderstats_coins / leaderstats_zone, sonst "Coins" / "Zone"). Werte setzt nur der Server, auf demselben
+-- Weg wie StateSync (bei jedem gesendeten Schnappschuss); stop entfernt sie. Eltern-Instanz liefert options.leaderstatsParent(player);
+-- Standard: das Player-Objekt, wenn es eine Instance ist (Fake-Spieler ohne Instanz bekommen keine leaderstats).
+-- Doku: https://create.roblox.com/docs/players/leaderboards
 local AnalyticsAdapter = require(script.Parent.AnalyticsAdapter)
 local CharacterAdapter = require(script.Parent.CharacterAdapter)
 local GameServer = require(script.Parent.Parent.GameServer)
@@ -51,6 +59,7 @@ export type Options = {
 	shutdownBudgetSeconds: number?,
 	loadFailedMessage: string?,
 	stateSeconds: number?, -- Takt fuer flushState (Standard 0.2)
+	leaderstatsParent: ((player: any) -> Instance?)?,
 	clock: (() -> number)?,
 	sleep: ((seconds: number) -> ())?,
 	rng: Random?,
@@ -65,8 +74,30 @@ export type Runtime = {
 
 local DEFAULT_KEY_PREFIX = "player_"
 local DEFAULT_LOAD_FAILED = "Your progress could not be loaded right now. Please rejoin in a moment."
+local LEADERSTATS = "leaderstats"
 
 local ServerRuntime = {}
+
+local function defaultLeaderstatsParent(player: any): Instance?
+	return if typeof(player) == "Instance" then player else nil
+end
+
+-- Name der hoechsten freigeschalteten Zone im Schnappschuss (Anzeigename aus texts, sonst zoneId).
+function ServerRuntime.highestZoneName(snapshot: any, config: any): string
+	local bestId: string? = nil
+	local bestOrder = -math.huge
+	for zoneId, zone in snapshot.zones do
+		if zone.unlocked and zone.order > bestOrder then
+			bestId, bestOrder = zoneId, zone.order
+		end
+	end
+	if bestId == nil then
+		return ""
+	end
+	local zoneConfig = config.zones[bestId]
+	local name = if zoneConfig ~= nil then config.texts[zoneConfig.nameKey] else nil
+	return if type(name) == "string" then name else bestId
+end
 
 local function defaultServerId(): string
 	local jobId = game.JobId
@@ -132,6 +163,47 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 	end
 	local analyticsAdapter = adapters.analytics or AnalyticsAdapter.new({ findPlayer = findPlayer })
 
+	-- leaderstats je userId; nur der Server schreibt die Werte.
+	local leaderstatsParent = options.leaderstatsParent or defaultLeaderstatsParent
+	local coinsName = if type(config.texts.leaderstats_coins) == "string"
+		then config.texts.leaderstats_coins
+		else "Coins"
+	local zoneName = if type(config.texts.leaderstats_zone) == "string" then config.texts.leaderstats_zone else "Zone"
+	-- Direkte Referenzen statt Suche per Name: gleiche Texte fuer beide Werte bleiben unschaedlich.
+	type Stats = { folder: Folder, coins: IntValue, zone: StringValue }
+	local leaderstats: { [number]: Stats } = {}
+	local function createLeaderstats(userId: number, player: any)
+		local ok, parent = pcall(leaderstatsParent, player)
+		if not ok or typeof(parent) ~= "Instance" then
+			return
+		end
+		local folder = Instance.new("Folder")
+		folder.Name = LEADERSTATS
+		local coins = Instance.new("IntValue")
+		coins.Name = coinsName
+		coins.Parent = folder
+		local zone = Instance.new("StringValue")
+		zone.Name = zoneName
+		zone.Parent = folder
+		folder.Parent = parent
+		leaderstats[userId] = { folder = folder, coins = coins, zone = zone }
+	end
+	local function updateLeaderstats(userId: number, snapshot: any)
+		local stats = leaderstats[userId]
+		if stats == nil then
+			return
+		end
+		stats.coins.Value = snapshot.coins
+		stats.zone.Value = ServerRuntime.highestZoneName(snapshot, config)
+	end
+	local function removeLeaderstats(userId: number)
+		local stats = leaderstats[userId]
+		leaderstats[userId] = nil
+		if stats ~= nil then
+			stats.folder:Destroy()
+		end
+	end
+
 	local function positionOf(ctx): Vector3?
 		local player = players[ctx.userId]
 		return if player ~= nil then character:position(player) else nil
@@ -171,6 +243,7 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 			then function(ctx, snapshot)
 				local player = players[ctx.userId]
 				if player ~= nil then
+					updateLeaderstats(ctx.userId, snapshot)
 					remotes:fireClient(RemoteBinder.STATE_REMOTE, player, snapshot)
 				end
 			end
@@ -197,11 +270,13 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 		end
 		joining[userId] = true
 		players[userId] = player
+		createLeaderstats(userId, player)
 		local result = composed:playerJoined({ userId = userId }, playersAdapter:joinSource(player))
 		joining[userId] = nil
 		if result.profile == nil then
 			-- Laden fehlgeschlagen: onLoadFailed hat bereits gekickt; kein Spiel mit leerem Profil.
 			players[userId] = nil
+			removeLeaderstats(userId)
 		end
 	end
 
@@ -212,6 +287,7 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 		end
 		composed:playerLeaving({ userId = userId })
 		players[userId] = nil
+		removeLeaderstats(userId)
 	end
 
 	table.insert(connections, playersAdapter:onAdded(onAdded))
@@ -233,24 +309,26 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 	market:setReceiptHandler(function(receipt: any): MarketAdapter.Decision
 		return composed:processReceipt(receipt)
 	end)
-	table.insert(
-		connections,
-		market:onPassPromptFinished(function(player: any, passId: number, wasPurchased: boolean)
-			local role = passRoles[passId]
-			if not wasPurchased or role == nil then
-				return
-			end
-			-- Wirksam erst nach serverseitiger Besitzpruefung.
-			local ok, owned = pcall(function()
-				return market:ownsPass(player.UserId, passId)
+	if next(passRoles) ~= nil then
+		table.insert(
+			connections,
+			market:onPassPromptFinished(function(player: any, passId: number, wasPurchased: boolean)
+				local role = passRoles[passId]
+				if not wasPurchased or role == nil then
+					return
+				end
+				-- Wirksam erst nach serverseitiger Besitzpruefung.
+				local ok, owned = pcall(function()
+					return market:ownsPass(player.UserId, passId)
+				end)
+				if ok and owned == true then
+					composed:setPassOwned({ userId = player.UserId }, role, true)
+				elseif not ok then
+					log:warnThrottled("ownsPass", "[ServerRuntime] ownsPass failed: " .. tostring(owned))
+				end
 			end)
-			if ok and owned == true then
-				composed:setPassOwned({ userId = player.UserId }, role, true)
-			elseif not ok then
-				log:warnThrottled("ownsPass", "[ServerRuntime] ownsPass failed: " .. tostring(owned))
-			end
-		end)
-	)
+		)
+	end
 	table.insert(
 		connections,
 		market:onProductPromptFinished(function(userId: number, productId: number, wasPurchased: boolean)
@@ -339,6 +417,10 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 			end
 			table.clear(connections)
 			market:clearReceiptHandler()
+			-- Nach stop schreibt niemand mehr: eingefrorene Werte nicht stehen lassen.
+			for userId in table.clone(leaderstats) do
+				removeLeaderstats(userId)
+			end
 		end,
 		shutdown = function(_self): { number }
 			return shutdown()

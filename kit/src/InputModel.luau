@@ -4,7 +4,8 @@
 --   Tastatur: E = einsammeln, Q = verkaufen. Gamepad: ButtonX = einsammeln, ButtonY = verkaufen.
 -- Auto-Einsammeln (nur Komfort, der Server prueft ohnehin): tick(snapshot, position) sendet hoechstens alle
 -- autoIntervalSeconds ein collect, wenn mindestens ein eigenes Item innerhalb der Reichweite (range aus dem
--- Schnappschuss) um die Charakterposition liegt.
+-- Schnappschuss) um die Charakterposition liegt und das Inventar nicht voll ist (inventoryCount < capacity);
+-- volle Inventare wuerde der Server ohnehin ablehnen, das spart Remote-Last.
 
 export type Intents = {
 	collect: (self: any) -> boolean,
@@ -57,6 +58,13 @@ function InputModel.new(options: Options): InputModel
 
 		tick = function(_self, snapshot: any, position: Vector3?): boolean
 			if snapshot == nil or position == nil then
+				return false
+			end
+			if
+				type(snapshot.inventoryCount) == "number"
+				and type(snapshot.capacity) == "number"
+				and snapshot.inventoryCount >= snapshot.capacity
+			then
 				return false
 			end
 			local now = clock()

@@ -6,6 +6,10 @@
 -- aktuellen Schritt oder nil, wenn das Onboarding fertig ist.
 -- Abschlussbedingungen: inventory = Inventar > 0; coins_increased = Coins hoeher als beim Start des Schritts;
 -- any_upgrade = irgendeine Upgrade-Stufe > 0; second_zone = Zone mit der zweitkleinsten order frei.
+-- Erster Schnappschuss: Schritte, deren Zustand bereits erreicht ist (any_upgrade, second_zone), werden samt
+-- allen davor liegenden Schritten uebersprungen - ein zurueckkehrender Spieler beginnt nicht wieder von vorn.
+-- FULL_HINT ist ein Anzeige-Schritt fuer das volle Inventar (Hinweis + Strahl zur Verkaufsflaeche); er gehoert
+-- nicht zur Schrittfolge, der Client zeigt ihn statt des aktuellen Schritts, solange das Inventar voll ist.
 
 export type Step = {
 	id: string,
@@ -27,9 +31,24 @@ local DEFAULT_STEPS: { Step } = {
 	{ id = "unlockZone", textKey = "onboarding_unlock", target = "none", condition = "second_zone" },
 }
 
+-- Bedingungen, die einen dauerhaften Zustand beschreiben (nicht ein Ereignis seit Schrittbeginn).
+local STATE_CONDITIONS: { [string]: boolean } = { any_upgrade = true, second_zone = true }
+
+local FULL_HINT: Step = { id = "full", textKey = "hint_full", target = "sell", condition = "none" }
+
 local OnboardingModel = {}
 
 OnboardingModel.DEFAULT_STEPS = DEFAULT_STEPS
+OnboardingModel.FULL_HINT = FULL_HINT
+
+-- Angezeigter Schritt: waehrend eines Wow-Banners (gleicher Platz) keiner, bei vollem Inventar FULL_HINT,
+-- sonst der aktuelle Schritt.
+function OnboardingModel.displayStep(bannerShown: boolean, full: boolean, current: Step?): Step?
+	if bannerShown then
+		return nil
+	end
+	return if full then FULL_HINT else current
+end
 
 local function secondZoneUnlocked(snapshot: any): boolean
 	local zones = {}
@@ -64,9 +83,21 @@ function OnboardingModel.new(steps: { Step }?): OnboardingModel
 	local list = steps or DEFAULT_STEPS
 	local index = 1
 	local startCoins: number? = nil
+	local seenFirst = false
 
 	local model: OnboardingModel = {
 		update = function(_self, snapshot: any): Step?
+			if not seenFirst then
+				seenFirst = true
+				-- Letzten bereits erfuellten Zustands-Schritt suchen; alles bis dahin gilt als erledigt.
+				for position = #list, 1, -1 do
+					local step = list[position]
+					if STATE_CONDITIONS[step.condition] and met(step.condition, snapshot, nil) then
+						index = position + 1
+						break
+					end
+				end
+			end
 			while list[index] ~= nil do
 				if startCoins == nil then
 					startCoins = snapshot.coins

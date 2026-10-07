@@ -330,6 +330,9 @@ function Validator.validate(config: any): Result
 						id(path .. ".asset", item.asset)
 					end
 					text(path .. ".nameKey", item.nameKey)
+					if item.rarity ~= nil then
+						enum(path .. ".rarity", item.rarity, Schema.RARITIES)
+					end
 				end
 			end
 		end

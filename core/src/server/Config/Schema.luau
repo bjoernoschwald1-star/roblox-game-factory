@@ -2,7 +2,7 @@
 -- Typisiertes Config-Schema eines Games. Die Config ist die einzige Quelle fuer Spielwerte; Code liest sie,
 -- schreibt sie nie. Alle IDs entsprechen ID_PATTERN. Asset-Referenzen sind abstrakte Schluessel (z. B.
 -- "item_small"); die Zuordnung zu echten Assets macht spaeter das Kit bzw. das Game.
--- Product- und Pass-IDs sind in Phase 0 Platzhalter (ganze Zahlen > 0).
+-- Product- und Pass-IDs sind in Phase 0 Platzhalter (ganze Zahlen > 0); products und passes duerfen leer sein.
 
 export type Effect = {
 	add: number?,
@@ -23,6 +23,7 @@ export type ItemConfig = {
 	price: number, -- ganze Zahl > 0 (Verkaufspreis in Coins)
 	asset: string, -- abstrakter Asset-Schluessel
 	nameKey: string,
+	rarity: string?, -- einer von RARITIES; fehlt -> DEFAULT_RARITY (nur Darstellung, keine Spiellogik)
 }
 
 export type Condition = { type: string, [string]: any }
@@ -107,5 +108,8 @@ Schema.SELL_TRIGGERS = table.freeze({ "zone", "npc", "button" })
 Schema.REWARD_TYPES = table.freeze({ "coins", "perk" })
 Schema.CONDITION_TYPES = table.freeze({ "always", "coinsAtLeast", "purchase", "upgradeLevel" })
 Schema.REMOTES = table.freeze({ "collect", "sell", "buyUpgrade", "unlockZone" })
+-- Seltenheit eines Itemtyps; Wirkung im Spiel nur ueber eigenen spawnWeight und price, sonst reine Anzeige.
+Schema.RARITIES = table.freeze({ "common", "rare", "epic", "legendary" })
+Schema.DEFAULT_RARITY = "common"
 
 return table.freeze(Schema)

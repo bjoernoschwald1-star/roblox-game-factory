@@ -1,9 +1,10 @@
 --!strict
--- Tests 64-66: Config-Validator gegen die SampleConfig und gezielt kaputte Kopien.
+-- Tests 64-66, 115: Config-Validator gegen die SampleConfig und gezielt kaputte Kopien.
 local ServerScriptService = game:GetService("ServerScriptService")
 local FactoryCore = ServerScriptService.FactoryCore
 local Runner = require(FactoryCore.testing.Runner)
 local Validator = require(FactoryCore.server.Config.Validator)
+local Schema = require(FactoryCore.server.Config.Schema)
 local SampleConfig = require(ServerScriptService.FactoryCoreTests.fixtures.SampleConfig)
 
 type Case = {
@@ -170,5 +171,34 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			weird.items = "none"
 			t.expect((pcall(Validator.validate, weird))).toBe(true)
 		end)
+
+		t.it(
+			"115 item rarity: valid values pass, unknown is UNKNOWN_ENUM, missing means common; empty shop ok",
+			function()
+				t.expect(Schema.RARITIES).toEqual({ "common", "rare", "epic", "legendary" })
+				t.expect(Schema.DEFAULT_RARITY).toBe("common")
+				for _, rarity in Schema.RARITIES do
+					local config: any = SampleConfig()
+					config.items.item_small.rarity = rarity
+					t.expect({ rarity, Validator.validate(config).ok }).toEqual({ rarity, true })
+				end
+				local unknown: any = SampleConfig()
+				unknown.items.item_small.rarity = "mythic"
+				local result = Validator.validate(unknown)
+				t.expect(hasError(result, "UNKNOWN_ENUM", "items.item_small.rarity")).toBe(true)
+				t.expect(#result.errors).toBe(1)
+				local wrongType: any = SampleConfig()
+				wrongType.items.item_small.rarity = 3
+				t.expect(hasError(Validator.validate(wrongType), "WRONG_TYPE", "items.item_small.rarity")).toBe(true)
+				local missing: any = SampleConfig()
+				missing.items.item_small.rarity = nil
+				t.expect(Validator.validate(missing).ok).toBe(true)
+				-- Testbed-Entscheidung: keine Produkte und keine Paesse.
+				local empty: any = SampleConfig()
+				empty.products = {}
+				empty.passes = {}
+				t.expect(Validator.format(Validator.validate(empty))).toBe("")
+			end
+		)
 	end)
 end

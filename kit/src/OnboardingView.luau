@@ -1,9 +1,12 @@
 --!strict
--- Darstellung des Onboardings: Text-Hinweis oben in der Mitte und ein Beam vom Charakter zum Zielort.
+-- Darstellung des Onboardings: Text-Hinweis unter der obersten HUD-Zeile und ein Beam vom Charakter zum Zielort.
+-- Der Hinweis nutzt die Vorlage "hint" aus HudLayout (hoechstens 90 % der Breite, Skalenwerte), Text skaliert und
+-- bricht um (TextScaled + UITextSizeConstraint) statt abgeschnitten zu werden; bei Groessenaenderung neu angeordnet.
 -- Der Beam verbindet ein Attachment am Wurzelteil des Charakters mit einem Attachment in einem lokalen,
 -- unsichtbaren Anker-Part am Ziel; ohne Ziel (target "none") oder ohne Charakter wird er ausgeblendet.
 -- Doku: https://create.roblox.com/docs/reference/engine/classes/Beam
 --       https://create.roblox.com/docs/reference/engine/classes/Attachment
+local HudLayout = require(script.Parent.HudLayout)
 local OnboardingModel = require(script.Parent.OnboardingModel)
 local Text = require(script.Parent.Text)
 
@@ -15,6 +18,8 @@ export type OnboardingView = {
 		root: BasePart?,
 		targetPosition: Vector3?
 	) -> (),
+	hint: (self: OnboardingView) -> TextLabel,
+	beam: (self: OnboardingView) -> Beam,
 	destroy: (self: OnboardingView) -> (),
 }
 
@@ -24,19 +29,35 @@ function OnboardingView.new(guiParent: Instance, worldParent: Instance, color: C
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "FactoryOnboarding"
 	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = false
+	gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
 	local hint = Instance.new("TextLabel")
 	hint.Name = "Hint"
-	hint.AnchorPoint = Vector2.new(0.5, 0)
-	hint.Position = UDim2.new(0.5, 0, 0, 120)
-	hint.Size = UDim2.fromOffset(520, 48)
-	hint.BackgroundTransparency = 0.3
-	hint.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	hint.BackgroundTransparency = 0.25
+	hint.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	hint.BorderSizePixel = 0
 	hint.TextColor3 = Color3.fromRGB(255, 255, 255)
 	hint.Font = Enum.Font.GothamBold
-	hint.TextSize = 22
-	hint.TextWrapped = true
+	hint.TextScaled = true
 	hint.Visible = false
+	local sizeLimit = Instance.new("UITextSizeConstraint")
+	sizeLimit.MaxTextSize = 22
+	sizeLimit.MinTextSize = 11
+	sizeLimit.Parent = hint
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.2, 0)
+	corner.Parent = hint
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0.03, 0)
+	padding.PaddingRight = UDim.new(0.03, 0)
+	padding.Parent = hint
 	hint.Parent = gui
+	local function layout()
+		local area = gui.AbsoluteSize
+		HudLayout.apply(hint, HudLayout.specs(HudLayout.presetFor(area), 0).hint)
+	end
+	layout()
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
 	gui.Parent = guiParent
 
 	local anchor = Instance.new("Part")
@@ -81,6 +102,12 @@ function OnboardingView.new(guiParent: Instance, worldParent: Instance, color: C
 			beam.Attachment0 = sourceAttachment
 			anchor.Position = targetPosition + Vector3.new(0, 1, 0)
 			beam.Enabled = true
+		end,
+		hint = function(_self): TextLabel
+			return hint
+		end,
+		beam = function(_self): Beam
+			return beam
 		end,
 		destroy = function(_self)
 			gui:Destroy()

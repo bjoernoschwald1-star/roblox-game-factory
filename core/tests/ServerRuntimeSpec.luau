@@ -1,5 +1,5 @@
 --!strict
--- Tests 77-86: ServerRuntime mit Fake-Adaptern (Spieler, Charakter, Remotes, Welt, Analytics, Scheduler,
+-- Tests 77-86, 99, 129-130: ServerRuntime mit Fake-Adaptern (Spieler, Charakter, Remotes, Welt, Analytics, Scheduler,
 -- Lifecycle) und dem echten MarketAdapter ueber einem Fake-MarketplaceService. Speicher: MemoryAdapter.
 local ServerScriptService = game:GetService("ServerScriptService")
 local FactoryCore = ServerScriptService.FactoryCore
@@ -431,5 +431,85 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			t.expect(worldOk).toBe(false)
 			t.expect(string.find(tostring(worldErr), "FactoryWorld.Zones.zone_c", 1, true) ~= nil).toBe(true)
 		end)
+
+		t.it("129 leaderstats: coins and highest zone set by the server after collect and sell", function()
+			local env = newEnv()
+			local containers: { [number]: Folder } = { [101] = Instance.new("Folder") }
+			local config: any = SampleConfig()
+			-- Gleiche Anzeigenamen fuer beide Werte duerfen die Anzeige nicht still brechen.
+			config.texts.leaderstats_coins = "Stand"
+			config.texts.leaderstats_zone = "Stand"
+			local runtime = start(env, {
+				config = config,
+				leaderstatsParent = function(player: any): Instance?
+					return containers[player.UserId]
+				end,
+			})
+			local ok, err = pcall(function()
+				local player = fakePlayer(101)
+				env.added:Fire(player)
+				-- Spieler ohne Container (leaderstatsParent liefert nil) bekommt keine leaderstats und keinen Fehler.
+				env.added:Fire(fakePlayer(102))
+				local stats = containers[101]:FindFirstChild("leaderstats") :: Folder
+				t.expect(stats ~= nil).toBe(true)
+				local coins = stats:FindFirstChildOfClass("IntValue") :: IntValue
+				local zone = stats:FindFirstChildOfClass("StringValue") :: StringValue
+				t.expect({ coins.Name, zone.Name }).toEqual({ "Stand", "Stand" })
+				t.expect({ coins.ClassName, zone.ClassName }).toEqual({ "IntValue", "StringValue" })
+
+				env.scheduler:advance(0.2)
+				t.expect(coins.Value).toBe(20)
+				t.expect(zone.Value).toBe(config.texts[config.zones.zone_a.nameKey])
+
+				env.positions[101] = Vector3.new(0, 0, 0)
+				env.remoteHandlers.collect(player)
+				env.positions[101] = Vector3.new(60, 0, 0)
+				env.remoteHandlers.sell(player)
+				-- StateSync sendet je Spieler hoechstens alle 0,2 s (Uhr aus env.now).
+				env.now += 1
+				env.scheduler:advance(0.2)
+				local balance = runtime.game.modules.economy:balance({ userId = 101 }) :: number
+				t.expect(balance > 20).toBe(true)
+				t.expect(coins.Value).toBe(balance)
+
+				env.removing:Fire(player)
+				t.expect(containers[101]:FindFirstChild("leaderstats")).toBe(nil)
+				-- Wiederkehr, dann stop: leaderstats werden entfernt.
+				env.added:Fire(fakePlayer(101))
+				t.expect(containers[101]:FindFirstChild("leaderstats") ~= nil).toBe(true)
+				runtime:stop()
+				t.expect(containers[101]:FindFirstChild("leaderstats")).toBe(nil)
+			end)
+			runtime:stop()
+			containers[101]:Destroy()
+			if not ok then
+				error(err, 0)
+			end
+		end)
+
+		t.it(
+			"130 no passes: ownsPass is never asked, no pass handler; receipts still answer NotProcessedYet",
+			function()
+				local env = newEnv()
+				local config: any = SampleConfig()
+				config.passes = {}
+				local runtime = start(env, { config = config })
+				local player = fakePlayer(101)
+				env.added:Fire(player)
+				t.expect(env.ownsCalls).toBe(0)
+				env.market.PromptGamePassPurchaseFinished:Fire(player, 1, true)
+				t.expect(env.ownsCalls).toBe(0)
+				t.expect(type(env.market.ProcessReceipt)).toBe("function")
+				local decision = env.market.ProcessReceipt({
+					PlayerId = 101,
+					ProductId = 999999,
+					PurchaseId = "unknown-1",
+					CurrencySpent = 0,
+					PlaceIdWherePurchased = 0,
+				})
+				t.expect(decision).toBe(Enum.ProductPurchaseDecision.NotProcessedYet)
+				runtime:stop()
+			end
+		)
 	end)
 end

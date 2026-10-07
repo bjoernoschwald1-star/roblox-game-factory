@@ -13,8 +13,14 @@
       "FactoryCoreTests": {
         "$path": "core/tests"
       },
-      "TestbedWorld": {
-        "$path": "games/testbed/server/World.luau"
+      "TestbedServerUnderTest": {
+        "$className": "Folder",
+        "World": {
+          "$path": "games/testbed/server/World.luau"
+        },
+        "ServerConfig": {
+          "$path": "games/testbed/server/ServerConfig.luau"
+        }
       }
     },
     "ReplicatedStorage": {
