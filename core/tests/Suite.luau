@@ -19,6 +19,9 @@ local Suite: { Runner.Spec } = {
 	require(script.Parent.MonetizationSpec) :: Runner.Spec,
 	require(script.Parent.AnalyticsSpec) :: Runner.Spec,
 	require(script.Parent.RemoteGatewaySpec) :: Runner.Spec,
+	require(script.Parent.ConfigValidatorSpec) :: Runner.Spec,
+	require(script.Parent.GameServerSpec) :: Runner.Spec,
+	require(script.Parent.SimulatorSpec) :: Runner.Spec,
 }
 
 return Suite
