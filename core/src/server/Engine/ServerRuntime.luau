@@ -7,6 +7,8 @@
 -- Phase 0 nicht umgesetzt), dann compose mit Diensten aus den Adaptern. Spieler (auch bereits vorhandene) werden
 -- angemeldet, die vier Remotes laufen ausschliesslich ueber game:dispatch, Kaeufe ueber ProcessReceipt,
 -- Pass-Kaeufe wirken erst nach serverseitiger Besitzpruefung, refillAll/autosaveAll laufen im Scheduler.
+-- Zustand zum Client: GameServer.flushState im Takt stateSeconds, Versand ueber RemoteBinder.fireClient an das
+-- Remote "stateUpdate" (nur an den jeweiligen Spieler).
 -- Shutdown (BindToClose, Roblox wartet hoechstens 30 s): alle Spieler werden parallel abgemeldet und freigegeben;
 -- nach shutdownBudgetSeconds werden nicht freigegebene Spieler per warn gemeldet.
 local AnalyticsAdapter = require(script.Parent.AnalyticsAdapter)
@@ -48,6 +50,7 @@ export type Options = {
 	refillSeconds: number?,
 	shutdownBudgetSeconds: number?,
 	loadFailedMessage: string?,
+	stateSeconds: number?, -- Takt fuer flushState (Standard 0.2)
 	clock: (() -> number)?,
 	sleep: ((seconds: number) -> ())?,
 	rng: Random?,
@@ -162,6 +165,16 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 			end
 		end,
 		log = log,
+		-- Zustand zum Client ueber das Remote "stateUpdate"; Spieler nicht mehr da -> verwerfen. Ein Binder ohne
+		-- fireClient (z. B. ein aelterer Test-Fake) schaltet den Rueckweg ab.
+		sendState = if remotes.fireClient ~= nil
+			then function(ctx, snapshot)
+				local player = players[ctx.userId]
+				if player ~= nil then
+					remotes:fireClient(RemoteBinder.STATE_REMOTE, player, snapshot)
+				end
+			end
+			else nil,
 	})
 
 	local productRoles: { [number]: string } = {}
@@ -232,7 +245,7 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 				return market:ownsPass(player.UserId, passId)
 			end)
 			if ok and owned == true then
-				composed.modules.monetization:setPassOwned({ userId = player.UserId }, role, true)
+				composed:setPassOwned({ userId = player.UserId }, role, true)
 			elseif not ok then
 				log:warnThrottled("ownsPass", "[ServerRuntime] ownsPass failed: " .. tostring(owned))
 			end
@@ -256,6 +269,12 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 		stops,
 		scheduler:every(options.refillSeconds or 1, function()
 			composed:refillAll()
+		end)
+	)
+	table.insert(
+		stops,
+		scheduler:every(options.stateSeconds or 0.2, function()
+			composed:flushState()
 		end)
 	)
 	table.insert(

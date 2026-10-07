@@ -13,6 +13,12 @@
       "FactoryCoreTests": {
         "$path": "core/tests"
       }
+    },
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "FactoryClient": {
+        "$path": "core/client"
+      }
     }
   }
 }

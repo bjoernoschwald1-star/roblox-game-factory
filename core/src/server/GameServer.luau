@@ -11,6 +11,8 @@
 -- Analytics: onCollected -> first_collect, collect mit FULL -> inventory_full, onSold -> first_sell,
 -- onUpgraded -> first_upgrade, onUnlocked -> zone_unlock (zoneIndex = Rang nach order, Startzone = 1),
 -- onPurchase -> purchase_success (role).
+-- Zustand zum Client (optional, services.sendState): StateSync merkt Spieler vor nach Join, erfolgreichem
+-- dispatch, refillAll mit neuen Items, gewaehrtem Kauf und setPassOwned; flushState sendet die Schnappschuesse.
 local Analytics = require(script.Parent.Analytics)
 local Collecting = require(script.Parent.Collecting)
 local Economy = require(script.Parent.Economy)
@@ -25,6 +27,7 @@ local Radius = require(script.Parent.CollectTypes.Radius)
 local RemoteGateway = require(script.Parent.RemoteGateway)
 local Schema = require(script.Parent.Config.Schema)
 local Selling = require(script.Parent.Selling)
+local StateSync = require(script.Parent.StateSync)
 local StorageAdapter = require(script.Parent.Storage.StorageAdapter)
 local TableCopy = require(script.Parent.Parent.shared.TableCopy)
 local Upgrades = require(script.Parent.Upgrades)
@@ -47,6 +50,9 @@ export type Services = {
 	analyticsSink: (eventName: string, fields: Analytics.Fields) -> (),
 	onLoadFailed: (ctx: PlayerContext, state: ProfileStore.LoadState, err: string?) -> (),
 	log: Log.Log?,
+	-- Optional: Rueckweg zum Client. Gesetzt -> StateSync markiert nach Join, erfolgreichem dispatch, Refill mit
+	-- neuen Items, gewaehrtem Kauf und Pass-Aenderung; flushState sendet. Nicht gesetzt -> Verhalten wie bisher.
+	sendState: ((ctx: PlayerContext, snapshot: StateSync.Snapshot) -> ())?,
 }
 
 export type Modules = {
@@ -72,6 +78,8 @@ export type Game = {
 	autosaveAll: (self: Game) -> PlayerSession.SaveReport,
 	shutdown: (self: Game) -> PlayerSession.SaveReport,
 	processReceipt: (self: Game, receipt: Monetization.Receipt) -> Monetization.Decision,
+	setPassOwned: (self: Game, ctx: PlayerContext, role: string, owned: boolean) -> (boolean, string?),
+	flushState: (self: Game) -> number,
 	modules: Modules,
 }
 
@@ -97,6 +105,10 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 		assert(type((services :: any)[name]) == "function", "GameServer: services." .. name .. " must be a function")
 	end
 	assert(services.storage ~= nil and services.rng ~= nil, "GameServer: services.storage and services.rng must be set")
+	assert(
+		services.sendState == nil or type(services.sendState) == "function",
+		"GameServer: services.sendState must be a function"
+	)
 
 	local config = TableCopy.copy(sourceConfig)
 	local log = services.log or Log.new({ clock = services.clock })
@@ -303,8 +315,34 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 	-- Aktive Spieler (erfolgreich geladen) fuer refillAll und shutdown.
 	local active: { [number]: PlayerContext } = {}
 
+	local stateSync: StateSync.StateSync? = if services.sendState ~= nil
+		then StateSync.new({
+			modules = {
+				session = session,
+				economy = economy,
+				inventory = inventory,
+				modifiers = modifiers,
+				upgrades = upgrades,
+				zones = zones,
+				collecting = collecting,
+			},
+			config = config,
+			send = services.sendState,
+			clock = services.clock,
+			log = log,
+		})
+		else nil
+	local function markDirty(ctx: PlayerContext)
+		if stateSync ~= nil then
+			stateSync:markDirty(ctx)
+		end
+	end
+
 	local function cleanup(ctx: PlayerContext)
 		active[ctx.userId] = nil
+		if stateSync ~= nil then
+			stateSync:forget(ctx)
+		end
 		analytics:sessionEnd(ctx)
 		collecting:stopPlayer(ctx)
 		monetization:clearPlayer(ctx)
@@ -319,6 +357,7 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 				collecting:startPlayer(ctx)
 				monetization:refreshPasses(ctx)
 				analytics:sessionStart(ctx, source)
+				markDirty(ctx)
 			end
 			return loaded
 		end,
@@ -329,12 +368,21 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 		end,
 
 		dispatch = function(_self, ctx: PlayerContext, remoteName: string, ...: any): (boolean, string?)
-			return gateway:dispatch(ctx, remoteName, ...)
+			local ok, err = gateway:dispatch(ctx, remoteName, ...)
+			if ok then
+				markDirty(ctx)
+			end
+			return ok, err
 		end,
 
 		refillAll = function(_self)
 			for _, ctx in active do
+				-- Nur Spieler mit neuen Items vormerken (refill fuegt nur hinzu).
+				local before = if stateSync ~= nil then #(collecting:instances(ctx) or {}) else 0
 				collecting:refill(ctx)
+				if stateSync ~= nil and #(collecting:instances(ctx) or {}) ~= before then
+					markDirty(ctx)
+				end
 			end
 		end,
 
@@ -354,7 +402,25 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 		end,
 
 		processReceipt = function(_self, receipt: Monetization.Receipt): Monetization.Decision
-			return monetization:processReceipt(receipt)
+			local decision = monetization:processReceipt(receipt)
+			if decision == "PurchaseGranted" and type(receipt) == "table" and type(receipt.PlayerId) == "number" then
+				markDirty({ userId = receipt.PlayerId })
+			end
+			return decision
+		end,
+
+		-- Pass-Besitz nach serverseitiger Pruefung aendern (z. B. nach PromptGamePassPurchaseFinished).
+		setPassOwned = function(_self, ctx: PlayerContext, role: string, owned: boolean): (boolean, string?)
+			local ok, err = monetization:setPassOwned(ctx, role, owned)
+			if ok then
+				markDirty(ctx)
+			end
+			return ok, err
+		end,
+
+		-- Sendet vorgemerkte Schnappschuesse; ohne services.sendState ein No-op (liefert 0).
+		flushState = function(_self): number
+			return if stateSync ~= nil then stateSync:flush() else 0
 		end,
 
 		modules = {

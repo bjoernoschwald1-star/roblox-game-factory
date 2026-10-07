@@ -24,6 +24,8 @@ local Suite: { Runner.Spec } = {
 	require(script.Parent.SimulatorSpec) :: Runner.Spec,
 	require(script.Parent.EngineAdaptersSpec) :: Runner.Spec,
 	require(script.Parent.ServerRuntimeSpec) :: Runner.Spec,
+	require(script.Parent.StateSyncSpec) :: Runner.Spec,
+	require(script.Parent.ClientSpec) :: Runner.Spec,
 }
 
 return Suite

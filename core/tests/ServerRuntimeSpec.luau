@@ -61,6 +61,7 @@ type Env = {
 	added: Signal,
 	removing: Signal,
 	remoteHandlers: { [string]: (player: any, ...any) -> () },
+	fired: { { name: string, player: any, payload: any } },
 	market: { [string]: any },
 	missingWorld: { string },
 	closeHandler: (() -> ())?,
@@ -80,6 +81,7 @@ local function newEnv(): Env
 	env.added = fakeSignal()
 	env.removing = fakeSignal()
 	env.remoteHandlers = {}
+	env.fired = {}
 	env.missingWorld = {}
 	env.scheduler = Scheduler.fake()
 	env.market = {
@@ -136,6 +138,9 @@ local function start(env: Env, overrides: { [string]: any }?): ServerRuntime.Run
 				bind = function(_self, name: string, handler)
 					env.remoteHandlers[name] = handler
 					return { Disconnect = function() end }
+				end,
+				fireClient = function(_self, name: string, player: any, payload: any)
+					table.insert(env.fired, { name = name, player = player, payload = payload })
 				end,
 			},
 			world = {
@@ -381,6 +386,35 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			env.now += 4
 			env.scheduler:advance(1)
 			t.expect(#(modules.collecting:instances(ctx) :: { any })).toBe(8)
+			runtime:stop()
+		end)
+
+		t.it("99 stateUpdate goes to the right player object; nothing is sent after leaving", function()
+			local env = newEnv()
+			local runtime = start(env)
+			local first = fakePlayer(101)
+			local second = fakePlayer(102)
+			env.added:Fire(first)
+			env.added:Fire(second)
+			env.scheduler:advance(0.2)
+
+			t.expect(#env.fired).toBe(2)
+			for _, entry in env.fired do
+				t.expect(entry.name).toBe("stateUpdate")
+				t.expect(entry.payload.coins).toBe(20)
+				t.expect(entry.player == first or entry.player == second).toBe(true)
+			end
+			t.expect(env.fired[1].player ~= env.fired[2].player).toBe(true)
+
+			env.positions[101] = Vector3.new(0, 0, 0)
+			env.remoteHandlers.collect(first)
+			env.removing:Fire(first)
+			table.clear(env.fired)
+			env.remoteHandlers.sell(second)
+			env.now += 1
+			env.scheduler:advance(1)
+			t.expect(#env.fired).toBe(1)
+			t.expect(env.fired[1].player).toBe(second)
 			runtime:stop()
 		end)
 
