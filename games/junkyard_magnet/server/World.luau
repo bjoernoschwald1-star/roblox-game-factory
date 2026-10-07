@@ -185,13 +185,32 @@ function World.build(config: any, parent: Instance?): Instance
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
 	spawn.Anchored = true
-	spawn.Size = Vector3.new(8, 1, 8)
+	spawn.Size = Vector3.new(10, 1, 10)
 	-- Blick zu den Zonen (+Z).
 	spawn.CFrame = CFrame.new(sellCenter + Vector3.new(20, 0.5, 0)) * CFrame.Angles(0, math.pi, 0)
-	spawn.Color = Color3.fromHex("#7D8B99")
+	-- Betonplatte mit Warnstreifen statt der grauen Noppenplatte.
+	spawn.Color = Color3.fromHex("#A39E94")
+	spawn.Material = Enum.Material.Concrete
+	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.Neutral = true
 	spawn.Duration = 0
 	spawn.Parent = root
+	local stripeA, stripeB = Color3.fromHex("#FFC21A"), Color3.fromHex("#2B2B2E")
+	for k = 0, 9 do
+		local color = if k % 2 == 0 then stripeA else stripeB
+		local along = -4.5 + k
+		for _, edge in
+			{
+				{ Vector3.new(1, 0.1, 0.6), Vector3.new(along, 0.55, -4.7) },
+				{ Vector3.new(1, 0.1, 0.6), Vector3.new(along, 0.55, 4.7) },
+				{ Vector3.new(0.6, 0.1, 1), Vector3.new(-4.7, 0.55, along) },
+				{ Vector3.new(0.6, 0.1, 1), Vector3.new(4.7, 0.55, along) },
+			}
+		do
+			local stripe = part("SpawnStripe", edge[1], spawn.CFrame * CFrame.new(edge[2]), color, root)
+			stripe.CanCollide = false
+		end
+	end
 
 	-- Boden: wenige kleine, dunkle Oelflecken (glaenzend, fast schwarz - nicht rot) und Fahrspuren von der Waage
 	-- zu den Zonen. Flache Parts ohne Kollision knapp ueber dem Boden.
@@ -322,6 +341,52 @@ function World.build(config: any, parent: Instance?): Instance
 	barrelGroup(110, 30, 3)
 	barrelGroup(span + 10, -24, 4)
 	barrelGroup(54, 50, 5)
+
+	-- Sandverwehungen: flache, breite Wellen (tief versenkte Kugeln) auf freien Sandflaechen.
+	local duneColors = { Color3.fromHex("#DCC08F"), Color3.fromHex("#CFB283") }
+	local dunes = {
+		{ -20, -64, 14 },
+		{ 50, -70, 12 },
+		{ 120, -66, 15 },
+		{ 172, 4, 11 },
+		{ -32, 14, 10 },
+		{ 82, 38, 12 },
+		{ 136, 44, 10 },
+	}
+	for index, dune in dunes do
+		local radius = dune[3]
+		local wave = part(
+			"Dune",
+			Vector3.one * radius * 2,
+			CFrame.new(dune[1], -radius * 0.9, dune[2]),
+			duneColors[index % 2 + 1],
+			ground
+		)
+		wave.Shape = Enum.PartType.Ball
+		wave.Material = Enum.Material.Sand
+	end
+	-- Kies: kleine graue Steine in lockeren Flecken.
+	local gravelRng = Random.new(11)
+	local gravelColors = { Color3.fromHex("#6E7781"), Color3.fromHex("#8A8F96"), Color3.fromHex("#5B5F66") }
+	for _ = 1, 10 do
+		local cx = gravelRng:NextNumber(minX + 12, maxX - 12)
+		local cz = if gravelRng:NextNumber() < 0.6
+			then gravelRng:NextNumber(minZ + 8, frontZ - 6)
+			else gravelRng:NextNumber(ZONE_SIZE.Z / 2 + 6, maxZ - 8)
+		for _ = 1, 14 do
+			local size = gravelRng:NextNumber(0.3, 0.7)
+			local stone = part(
+				"Gravel",
+				Vector3.new(size, size * 0.6, size * gravelRng:NextNumber(0.8, 1.3)),
+				CFrame.new(cx + gravelRng:NextNumber(-3, 3), 0.15, cz + gravelRng:NextNumber(-3, 3))
+					* CFrame.Angles(0, gravelRng:NextNumber(0, math.pi), 0),
+				gravelColors[gravelRng:NextInteger(1, #gravelColors)],
+				ground
+			)
+			stone.Material = Enum.Material.Slate
+			stone.CanCollide = false
+		end
+	end
 
 	-- Sandhuegel mit Rampen
 	hill(-24, -2, 9, 90)

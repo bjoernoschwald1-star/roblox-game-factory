@@ -160,8 +160,27 @@ end
 local rarityStyles = {
 	common = { bob = 0.35, spin = 50 },
 	rare = { bob = 0.4, spin = 70, highlight = true, sparkles = true, accent = PALETTE.chrome_light },
-	epic = { bob = 0.45, spin = 80, highlight = true, sparkles = true, light = true, accent = PALETTE.gold },
-	legendary = { bob = 0.5, spin = 110, highlight = true, sparkles = true, light = true, accent = PALETTE.neon_cyan },
+	-- Lichtschein etwa halbiert gegenueber dem Kit-Standard (2/3), damit nichts ueberstrahlt.
+	epic = {
+		bob = 0.45,
+		spin = 80,
+		highlight = true,
+		sparkles = true,
+		light = true,
+		lightBrightness = 1,
+		lightRange = 6,
+		accent = PALETTE.gold,
+	},
+	legendary = {
+		bob = 0.5,
+		spin = 110,
+		highlight = true,
+		sparkles = true,
+		light = true,
+		lightBrightness = 1.5,
+		lightRange = 7,
+		accent = PALETTE.neon_cyan,
+	},
 }
 
 -- Warmes, sattes Nachmittagslicht ueber dem Schrottplatz (kit/src/LightingProfile.luau).
@@ -193,7 +212,8 @@ local lighting = {
 		Saturation = 0.25,
 		TintColor = Color3.fromRGB(255, 248, 235),
 	},
-	bloom = { Intensity = 0.7, Size = 26, Threshold = 1.1 },
+	-- Bloom halbiert: Neon und Gold sollen leuchten, aber nicht ueberstrahlen.
+	bloom = { Intensity = 0.35, Size = 22, Threshold = 1.2 },
 	sunRays = { Intensity = 0.08, Spread = 0.7 },
 	sky = { SunAngularSize = 16, CelestialBodiesShown = true },
 }

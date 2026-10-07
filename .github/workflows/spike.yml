@@ -60,8 +60,8 @@ jobs:
 
       - name: Publish to staging
         run: |
-          python tools/spike/build.py --project testbed.project.json
-          python tools/spike/publish.py --target staging --file build/testbed.rbxl
+          python tools/spike/build.py --project junkyard.project.json
+          python tools/spike/publish.py --target staging --file build/junkyard.rbxl
 
       - name: Check secrets
         if: always()

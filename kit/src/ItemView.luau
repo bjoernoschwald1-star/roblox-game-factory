@@ -52,6 +52,8 @@ export type RarityStyle = {
 	light: boolean?,
 	sparkles: boolean?,
 	accent: Color3?,
+	lightBrightness: number?, -- Standard 2 (epic) bzw. 3 (legendary)
+	lightRange: number?, -- Standard 8 bzw. 12 Studs
 }
 
 export type Limits = {
@@ -290,8 +292,8 @@ local function createPart(
 		counts.lights += 1
 		local light = Instance.new("PointLight")
 		light.Color = accent
-		light.Brightness = if rarity == "legendary" then 3 else 2
-		light.Range = if rarity == "legendary" then 12 else 8
+		light.Brightness = rarityStyle.lightBrightness or (if rarity == "legendary" then 3 else 2)
+		light.Range = rarityStyle.lightRange or (if rarity == "legendary" then 12 else 8)
 		light.Shadows = false
 		light.Parent = part
 	end

@@ -19,7 +19,7 @@
 --   Hinweis: klein, oben (neben bzw. unter den Anzeigen), nie in der Bildschirmmitte; OnboardingView blendet ihn
 --     nach einigen Sekunden aus.
 --   Aktionen (Einsammeln, Verkaufen): runde Knoepfe unten rechts, auf Touch-Flaechen direkt links neben dem
---     Sprungknopf. Groesse 56 px (PC), 64 px (Handy), 72 px (Tablet).
+--     Sprungknopf. Groesse 80 px (PC), 72 px (Handy), 88 px (Tablet), damit die Beschriftung lesbar ist.
 --   Rand-Knoepfe "unlock" (Zone freischalten) und "upgrades" (oeffnet das Upgrade-Fenster): unten links, auf
 --     Touch-Flaechen rechts neben dem Thumbstick bzw. (Handy hoch) ueber ihm.
 --   Upgrade-Fenster ("window"): mittig, nur auf Knopfdruck sichtbar; es ist modal und gehoert nicht zur
@@ -94,7 +94,7 @@ function HudLayout.rects(area: Vector2): { [string]: Rect }
 	local touch = preset ~= "wide"
 	local phone = math.min(area.X, area.Y) <= SMALL_EDGE
 	local labelH = if touch then 34 else 30
-	local action = if not touch then 56 elseif phone then 64 else 72
+	local action = if not touch then 80 elseif phone then 72 else 88
 	local buttonH = if touch then 56 else 40
 	local chat = zones.chat
 	local right = area.X - (if zones.playerList then PLAYER_LIST else 0) - MARGIN

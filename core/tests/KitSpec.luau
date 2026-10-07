@@ -476,7 +476,7 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				for _, area in { Vector2.new(1280, 662), Vector2.new(456, 726), Vector2.new(1024, 710) } do
 					table.insert(sizes, HudLayout.rects(area).collect.w)
 				end
-				t.expect(sizes).toEqual({ 56, 64, 72 })
+				t.expect(sizes).toEqual({ 80, 72, 88 })
 				-- Ueberlappung wird erkannt (Gegenprobe).
 				t.expect(HudLayout.overlaps({ x = 0, y = 0, w = 10, h = 10 }, { x = 9, y = 9, w = 5, h = 5 }))
 					.toBe(true)

@@ -85,7 +85,8 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 		corner.CornerRadius = if round then UDim.new(0.5, 0) else UDim.new(0.25, 0)
 		corner.Parent = target
 		local padding = Instance.new("UIPadding")
-		local inset = if round then 0.16 else 0.06
+		-- Runde Knoepfe: wenig Rand, damit der Text im Kreis gross bleibt.
+		local inset = if round then 0.1 else 0.06
 		padding.PaddingLeft = UDim.new(inset, 0)
 		padding.PaddingRight = UDim.new(inset, 0)
 		padding.PaddingTop = UDim.new(0.12, 0)
