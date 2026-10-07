@@ -1,20 +1,15 @@
 {
-  "name": "factory-spike",
+  "name": "factory-testbed",
+  "globIgnorePaths": ["core/src/testing/**"],
   "tree": {
     "$className": "DataModel",
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "Spike": {
-        "$path": "src"
-      },
       "FactoryCore": {
         "$path": "core/src"
       },
-      "FactoryCoreTests": {
-        "$path": "core/tests"
-      },
-      "TestbedWorld": {
-        "$path": "games/testbed/server/World.luau"
+      "TestbedServer": {
+        "$path": "games/testbed/server"
       }
     },
     "ReplicatedStorage": {
@@ -27,6 +22,15 @@
       },
       "TestbedShared": {
         "$path": "games/testbed/shared"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "TestbedClient": {
+          "$path": "games/testbed/client"
+        }
       }
     }
   }

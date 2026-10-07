@@ -1,6 +1,6 @@
-"""Grenzcheck der Core Engine: core/src und core/client duerfen keine Theme-Begriffe und keine Asset-IDs enthalten.
+"""Grenzcheck: core/src, core/client und kit/src duerfen keine Theme-Begriffe und keine Asset-IDs enthalten.
 
-Durchsucht alle Dateien unter core/src und core/client (oder die uebergebenen Dateien/Ordner) nach den Begriffen
+Durchsucht alle Dateien unter core/src, core/client und kit/src (oder die uebergebenen Dateien/Ordner) nach den Begriffen
 junkyard, magnet, scrap, schrott, treasure, deepsea und deep_sea - ohne Ruecksicht auf
 Gross-/Kleinschreibung, aber nur als ganzes Wort. Als Wortgrenze gilt jedes Zeichen ausser Buchstabe
 oder Ziffer (also auch der Unterstrich) sowie ein Wechsel von Klein- zu Grossbuchstabe (camelCase):
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ROOTS = [REPO_ROOT / "core" / "src", REPO_ROOT / "core" / "client"]
+DEFAULT_ROOTS = [REPO_ROOT / "core" / "src", REPO_ROOT / "core" / "client", REPO_ROOT / "kit" / "src"]
 WORDS = ("junkyard", "magnet", "scrap", "schrott", "treasure", "deepsea", "deep_sea")
 
 # Die Grenzen pruefen die Gross-/Kleinschreibung, daher gilt (?i:...) nur fuer den Begriff selbst.
