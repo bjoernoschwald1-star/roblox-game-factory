@@ -6,6 +6,12 @@
       "$className": "ServerScriptService",
       "Spike": {
         "$path": "src"
+      },
+      "FactoryCore": {
+        "$path": "core/src"
+      },
+      "FactoryCoreTests": {
+        "$path": "core/tests"
       }
     }
   }

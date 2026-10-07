@@ -1,7 +1,7 @@
 --!strict
 -- Einstiegspunkt fuer den Luau-Execution-Task: fuehrt eine Suite aus, schreibt eine
 -- Zusammenfassung in die Logs und bricht mit error() ab, wenn ein Test fehlschlaegt.
-local Runner = require(script.Parent.Runner)
+local Runner = require(game:GetService("ServerScriptService").FactoryCore.testing.Runner)
 local Suites = require(script.Parent.Suites)
 
 export type Summary = {
@@ -13,12 +13,12 @@ export type Summary = {
 }
 
 return function(suiteName: string, runId: string): Summary
-	local specs = Suites[suiteName]
-	if specs == nil then
+	local loadSpecs = Suites[suiteName]
+	if loadSpecs == nil then
 		error(string.format("[spike] unknown suite %q", suiteName), 0)
 	end
 
-	local results = Runner.run(specs, { runId = runId })
+	local results = Runner.run(loadSpecs(), { runId = runId })
 	local passed, failed = 0, 0
 	for _, result in results do
 		if result.ok then

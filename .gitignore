@@ -3,3 +3,4 @@ build/
 *.rbxl
 *.rbxlx
 __pycache__/
+.claude/settings.local.json

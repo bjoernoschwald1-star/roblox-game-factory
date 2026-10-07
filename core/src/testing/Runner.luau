@@ -45,7 +45,7 @@ local function describeValue(value: any): string
 	return tostring(value)
 end
 
-local function deepEqual(a: any, b: any): boolean
+local function valuesEqual(a: any, b: any): boolean
 	if a == b then
 		return true
 	end
@@ -53,7 +53,7 @@ local function deepEqual(a: any, b: any): boolean
 		return false
 	end
 	for k, v in a do
-		if not deepEqual(v, b[k]) then
+		if not valuesEqual(v, b[k]) then
 			return false
 		end
 	end
@@ -73,7 +73,7 @@ local function expect(actual: any): Expectation
 			end
 		end,
 		toEqual = function(expected: any)
-			if not deepEqual(actual, expected) then
+			if not valuesEqual(actual, expected) then
 				error(string.format("expected %s to equal %s", describeValue(actual), describeValue(expected)), 0)
 			end
 		end,

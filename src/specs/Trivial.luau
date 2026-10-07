@@ -1,5 +1,5 @@
 --!strict
-local Runner = require(script.Parent.Parent.Runner)
+local Runner = require(game:GetService("ServerScriptService").FactoryCore.testing.Runner)
 
 return function(t: Runner.Api, _ctx: Runner.Context)
 	t.describe("trivial", function()

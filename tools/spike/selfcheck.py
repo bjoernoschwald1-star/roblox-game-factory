@@ -1,6 +1,9 @@
 """Rot/Gruen-Nachweis: "green" muss Exit 0 liefern, "red" Exit 1 (Tests fehlgeschlagen).
+Zusaetzlich muss die Suite "core" (Tests der Core Engine) Exit 0 liefern.
 
 Ein Infrastrukturfehler bei "red" (Exit 2/3) zaehlt bewusst NICHT als korrekt erkanntes Rot.
+Pro Durchlauf entstehen genau drei Luau-Execution-Tasks (Limit: 5 pro Minute pro Key-Besitzer);
+ein 429 wird in _common.request mit Backoff wiederholt.
 """
 
 import subprocess
@@ -31,8 +34,12 @@ def main() -> int:
     print(f"selfcheck: CI place version {version}")
     green = run_suite("green", version)
     red = run_suite("red", version)
-    ok = green == 0 and red == 1
-    print(f"selfcheck: green={'PASS' if green == 0 else 'FAIL'} red={'DETECTED' if red == 1 else 'NOT DETECTED'}")
+    core = run_suite("core", version)
+    ok = green == 0 and red == 1 and core == 0
+    print(
+        f"selfcheck: green={'PASS' if green == 0 else 'FAIL'} red={'DETECTED' if red == 1 else 'NOT DETECTED'}"
+        f" core={'PASS' if core == 0 else 'FAIL'}"
+    )
     print(f"selfcheck: {'OK' if ok else 'FAILED'}")
     return 0 if ok else 1
 

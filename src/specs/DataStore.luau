@@ -2,7 +2,7 @@
 -- Schreibt run_<Lauf-ID> in den DataStore "ci_spike", liest zurueck und loescht wieder.
 -- Ausschliesslich dieser Namensraum wird angefasst.
 local DataStoreService = game:GetService("DataStoreService")
-local Runner = require(script.Parent.Parent.Runner)
+local Runner = require(game:GetService("ServerScriptService").FactoryCore.testing.Runner)
 
 local STORE_NAME = "ci_spike"
 

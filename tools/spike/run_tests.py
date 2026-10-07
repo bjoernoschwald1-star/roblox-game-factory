@@ -108,7 +108,7 @@ def run(suite: str, version: int | None) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=("green", "red"), required=True)
+    parser.add_argument("--suite", choices=("green", "red", "core"), required=True)
     parser.add_argument("--version", type=int, help="vorhandene Place-Version nutzen statt neu zu publizieren")
     args = parser.parse_args()
     return run(args.suite, args.version)

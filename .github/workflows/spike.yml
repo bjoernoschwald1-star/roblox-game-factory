@@ -41,15 +41,18 @@ jobs:
         run: rokit install --no-trust-check
 
       - name: Format check
-        run: stylua --check src
+        run: stylua --check src core
 
       - name: Lint
-        run: selene src
+        run: selene src core
+
+      - name: Core boundary
+        run: python tools/core_boundary.py
 
       - name: Build
         run: python tools/spike/build.py
 
-      - name: Selfcheck (green passes, red fails)
+      - name: Selfcheck (green passes, red fails, core passes)
         run: python tools/spike/selfcheck.py
 
       - name: Publish to staging
