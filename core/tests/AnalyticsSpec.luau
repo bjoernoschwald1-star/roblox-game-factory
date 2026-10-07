@@ -93,6 +93,7 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 						userId = 101,
 						source = "paid",
 						funnelStep = 1,
+						firstSession = true,
 					},
 				},
 				{
@@ -176,6 +177,54 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				userId = 101,
 				role = "coins_small",
 			})
+		end)
+
+		t.it("91 session_start carries funnelStep 1 and firstSession only in the first session of a player", function()
+			local env = newEnv()
+			local memory = MemoryAdapter.new()
+			local sessionA = PlayerSession.new({ store = newStore(memory, "server-a"), onLoadFailed = function() end })
+			sessionA:join(CTX)
+			local analyticsA = newAnalytics(env, function(ctx)
+				return sessionA:get(ctx)
+			end)
+			t.expect(analyticsA:sessionStart(CTX, "organic")).toBe(true)
+			t.expect({ env.sent[1].fields.funnelStep, env.sent[1].fields.firstSession }).toEqual({ 1, true })
+			sessionA:leave(CTX)
+
+			local sessionB = PlayerSession.new({ store = newStore(memory, "server-b"), onLoadFailed = function() end })
+			t.expect(sessionB:join(CTX).state).toBe("LOADED")
+			local analyticsB = newAnalytics(env, function(ctx)
+				return sessionB:get(ctx)
+			end)
+			t.expect(analyticsB:sessionStart(CTX, "organic")).toBe(true)
+			t.expect(env.sent[2].fields).toEqual({
+				gameId = "game_test",
+				configVersion = "1.0.0",
+				userId = 101,
+				source = "organic",
+			})
+
+			-- Werfender sink bei der ersten Sitzung: Status bleibt offen, die naechste Sitzung sendet Schritt 1.
+			local other = { userId = 202 }
+			env.profiles[202] = {}
+			local analytics = newAnalytics(env)
+			env.sinkFails = true
+			local failed, failedErr = analytics:sessionStart(other, "paid")
+			t.expect({ failed, failedErr }).toEqual({ false, "SINK_ERROR" })
+			t.expect(env.profiles[202].funnel.session_start).toBe(nil)
+			env.sinkFails = false
+			t.expect(analytics:sessionStart(other, "paid")).toBe(true)
+			local retried = env.sent[#env.sent].fields
+			t.expect({ retried.userId, retried.funnelStep, retried.firstSession }).toEqual({ 202, 1, true })
+
+			-- Beschaedigtes Funnel-Feld: session_start trotzdem, aber ohne funnelStep; Feld bleibt, Warnung.
+			env.profiles[CTX.userId].funnel = "broken"
+			local warningsBefore = #env.warnings
+			t.expect(analytics:sessionStart(CTX, "paid")).toBe(true)
+			local corrupt = env.sent[#env.sent].fields
+			t.expect({ corrupt.userId, corrupt.funnelStep, corrupt.firstSession }).toEqual({ 101 })
+			t.expect(env.profiles[CTX.userId].funnel).toBe("broken")
+			t.expect(#env.warnings).toBe(warningsBefore + 1)
 		end)
 	end)
 end

@@ -8,6 +8,12 @@
 -- Funnel: session_start -> first_collect -> first_sell -> first_upgrade -> zone_unlock(zoneIndex 2); Events auf
 -- dem Funnel bekommen zusaetzlich funnelStep (1-5).
 --
+-- session_start geht bei jeder Sitzung raus (Bounce, Spielzeit), traegt funnelStep = 1 und firstSession = true
+-- aber nur bei der ersten Sitzung des Spielers: Der Funnel beschreibt die erste Spielerfahrung. Der Status
+-- liegt im selben Profilfeld wie die Schritte (Eintrag "session_start") und wird erst nach erfolgreichem Senden
+-- gesetzt. Ist das Feld beschaedigt, geht session_start trotzdem ohne funnelStep raus (Sitzungsdaten sind
+-- wichtiger als der Funnel), der Status bleibt unveraendert, und es wird gedrosselt gewarnt.
+--
 -- step(): einmal im Leben pro Spieler, Status im Profil (profile[field] = { [eventName]: true }). sink laeuft in
 -- pcall; schlaegt er fehl, gilt das Event als nicht gesendet und der step-Status wird nicht gesetzt.
 --
@@ -53,8 +59,9 @@ local KIND: { [string]: string } = {
 	purchase_success = "track",
 }
 
+-- session_start (Schritt 1) setzt sessionStart selbst, nur bei der ersten Sitzung.
+local FIRST_SESSION_STEP = 1
 local FUNNEL_STEP: { [string]: number } = {
-	session_start = 1,
 	first_collect = 2,
 	first_sell = 3,
 	first_upgrade = 4,
@@ -108,12 +115,12 @@ function Analytics.new(options: Options): Analytics
 		return clean
 	end
 
-	local function send(ctx: PlayerContext, name: string, fields: Fields): (boolean, string?)
+	local function send(ctx: PlayerContext, name: string, fields: Fields, explicitStep: number?): (boolean, string?)
 		local payload: Fields = table.clone(fields)
 		payload.gameId = gameId
 		payload.configVersion = configVersion
 		payload.userId = ctx.userId
-		local funnelStep = FUNNEL_STEP[name]
+		local funnelStep = explicitStep or FUNNEL_STEP[name]
 		if name == "zone_unlock" and payload.zoneIndex == FUNNEL_ZONE_INDEX then
 			funnelStep = FUNNEL_ZONE_STEP
 		end
@@ -168,7 +175,25 @@ function Analytics.new(options: Options): Analytics
 				source = "unknown"
 			end
 			sessionStarts[ctx.userId] = clock()
-			return send(ctx, "session_start", { source = source })
+
+			local fields: Fields = { source = source }
+			local profile = getProfile(ctx)
+			local done = if profile ~= nil then doneSteps(profile) else nil
+			if profile ~= nil and done == nil then
+				log:warnThrottled(
+					"funnel_corrupt",
+					"[Analytics] corrupt funnel field; session_start sent without funnelStep"
+				)
+			end
+			local firstSession = done ~= nil and not done.session_start
+			if firstSession then
+				fields.firstSession = true
+			end
+			local sent, err = send(ctx, "session_start", fields, if firstSession then FIRST_SESSION_STEP else nil)
+			if sent and done ~= nil and firstSession then
+				done.session_start = true
+			end
+			return sent, err
 		end,
 
 		sessionEnd = function(_self, ctx: PlayerContext): (boolean, string?)
