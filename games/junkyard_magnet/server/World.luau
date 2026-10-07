@@ -303,15 +303,15 @@ function World.build(config: any, parent: Instance?): Instance
 	place("prop_tire_stack", 0, -64, 30)
 	-- Fass-Gruppen in verschiedenen Lackfarben
 	local function barrelGroup(x: number, z: number, seed: number)
-		local rng = Random.new(seed)
+		local barrelRng = Random.new(seed)
 		local colors = { "deco_barrel_red", "deco_barrel_blue", "deco_barrel_green", "deco_barrel_yellow" }
 		for index = 1, 4 do
 			local name = colors[(index + seed) % #colors + 1]
 			place(
 				name,
-				x + (index % 2) * 3.2 + rng:NextNumber(-0.4, 0.4),
+				x + (index % 2) * 3.2 + barrelRng:NextNumber(-0.4, 0.4),
 				z + math.floor((index - 1) / 2) * 3.2,
-				rng:NextNumber(0, 360),
+				barrelRng:NextNumber(0, 360),
 				0,
 				1.6
 			)
