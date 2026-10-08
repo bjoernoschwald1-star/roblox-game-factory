@@ -58,6 +58,16 @@ local SHAPES: { [string]: Enum.PartType } = {
 	Cylinder = Enum.PartType.Cylinder,
 	Ball = Enum.PartType.Ball,
 }
+-- Lackfarben der Wracks (STYLE.md): rot, blau, weiss, gelb, rostig, dunkelgruen, olivgruen.
+local WRECK_COLORS = {
+	Color3.fromHex("#E8322F"),
+	Color3.fromHex("#3F72A8"),
+	Color3.fromHex("#DCE6F0"),
+	Color3.fromHex("#FFC21A"),
+	Color3.fromHex("#E0702E"),
+	Color3.fromHex("#2F5D3A"),
+	Color3.fromHex("#7A9E3E"),
+}
 local ZONE_TINTS = {
 	Color3.fromHex("#C9A776"),
 	Color3.fromHex("#B89A78"),
@@ -78,8 +88,17 @@ local function part(name: string, size: Vector3, cframe: CFrame, color: Color3, 
 	return created
 end
 
--- Baut ein Kulissen-Objekt aus PropShapes an pivot (Drehpunkt Mitte unten, Vorderseite +Z).
-function World.buildProp(name: string, pivot: CFrame, parent: Instance, collide: boolean?, scale: number?): Model
+-- Baut ein Kulissen-Objekt aus PropShapes an pivot (Drehpunkt Mitte unten, Vorderseite +Z). tint ersetzt die
+-- vorherrschende Farbe (Lack, z. B. Wrackfarben); Akzente behalten ihre Farbe. Die Farbe wird im Spiel gesetzt,
+-- weil der Import ohnehin nur ein graues Mesh liefert und dessen Farbe immer hier entsteht.
+function World.buildProp(
+	name: string,
+	pivot: CFrame,
+	parent: Instance,
+	collide: boolean?,
+	scale: number?,
+	tint: Color3?
+): Model
 	local k = scale or 1
 	local data = (PropShapes :: any)[name]
 	assert(data ~= nil, "World: unknown prop " .. name)
@@ -87,8 +106,13 @@ function World.buildProp(name: string, pivot: CFrame, parent: Instance, collide:
 	model.Name = name
 	local template = models[name]
 	local accents: { [number]: boolean } = {}
+	local dominant = MeshModels.dominant(data.parts)
 	if template ~= nil then
-		MeshModels.visual(template, data.parts, pivot, k, k).Parent = model
+		local mesh = MeshModels.visual(template, data.parts, pivot, k, k)
+		if tint ~= nil then
+			mesh.Color = tint
+		end
+		mesh.Parent = model
 		accents = MeshModels.accents(data.parts)
 		for index in accents do
 			local accent = MeshModels.accentPart(data.parts[index], pivot, k)
@@ -119,7 +143,8 @@ function World.buildProp(name: string, pivot: CFrame, parent: Instance, collide:
 				row[15],
 				row[16]
 			)
-		created.Color = Color3.fromHex(row[17])
+		local color = Color3.fromHex(row[17])
+		created.Color = if tint ~= nil and color == dominant then tint else color
 		created.Material = MATERIALS[row[18]] or Enum.Material.SmoothPlastic
 		created.Anchored = true
 		created.CanCollide = collide ~= false
@@ -326,8 +351,28 @@ function World.build(config: any, parent: Instance?): Instance
 	-- Kulisse (dicht): Kran als Wahrzeichen, grosse Schrotthaufen, Container-Reihen (teils gestapelt), gestapelte
 	-- Wracks, Reifenstapel und Sandhuegel mit Rampen. Hoehen: Container 8,5, Wrack etwa 5,2 Studs (PropShapes.size).
 	local sizes = PropShapes :: any
+	-- Wracks in wechselnden Lackfarben: Palette fest geseedet gemischt und reihum vergeben (jede Farbe kommt vor).
+	local wreckRng = Random.new(23)
+	local wreckColors = table.clone(WRECK_COLORS)
+	for index = #wreckColors, 2, -1 do
+		local other = wreckRng:NextInteger(1, index)
+		wreckColors[index], wreckColors[other] = wreckColors[other], wreckColors[index]
+	end
+	local wreckCount = 0
 	local function place(name: string, x: number, z: number, degrees: number, y: number?, scale: number?)
-		World.buildProp(name, CFrame.new(x, y or 0, z) * CFrame.Angles(0, math.rad(degrees), 0), props, nil, scale)
+		local tint: Color3? = nil
+		if name == "prop_car_wreck" then
+			wreckCount += 1
+			tint = wreckColors[(wreckCount - 1) % #wreckColors + 1]
+		end
+		World.buildProp(
+			name,
+			CFrame.new(x, y or 0, z) * CFrame.Angles(0, math.rad(degrees), 0),
+			props,
+			nil,
+			scale,
+			tint
+		)
 	end
 	local function stackedWrecks(x: number, z: number, degrees: number)
 		place("prop_car_wreck", x, z, degrees)

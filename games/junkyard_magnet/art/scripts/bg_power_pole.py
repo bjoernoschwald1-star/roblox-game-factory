@@ -15,7 +15,7 @@ HEIGHT = 34.0
 
 def build(name: str):
     b = jm.Builder(name)
-    wood = jm.solid_material("rust_dark", 0.0, 0.9)
+    wood = jm.solid_material("bark_brown", 0.0, 0.9)
     metal = jm.solid_material("chrome_dark", 0.6, 0.5)
     glass = jm.solid_material("chrome_light", 0.0, 0.3)
     b.cylinder(0.6, HEIGHT, 6, wood, jm.transform((0, 0, HEIGHT / 2)), radius_top=0.45)

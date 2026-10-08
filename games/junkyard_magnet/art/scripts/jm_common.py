@@ -27,7 +27,7 @@ RENDER_DIR = REPO_ROOT / "build" / "art" / "renders"
 
 STUD_IN_METERS = 0.28
 
-# Verbindliche Palette (15 Farben), identisch mit STYLE.md.
+# Verbindliche Palette (16 Farben), identisch mit STYLE.md.
 PALETTE = {
     "rust_dark": "#8A3B1E",
     "rust_orange": "#E0702E",
@@ -46,6 +46,8 @@ PALETTE = {
     "metal_gray": "#6E7781",
     # Ergaenzung (Bjoern): Holzbraun fuer Baumstaemme (rust_dark wirkte rot).
     "bark_brown": "#6B4A2F",
+    # Ergaenzung (Bjoern): Dunkelgruen als Wrack-Lackfarbe (die Farbe setzt das Spiel).
+    "bottle_green": "#2F5D3A",
 }
 
 RARITIES = ("rusty", "chrome", "gold", "neon")

@@ -6,7 +6,7 @@
 return {
 	bg_bush = 79498812612416,
 	bg_dune = 111203181136245,
-	bg_power_pole = 137592273296351,
+	bg_power_pole = 76568092133382,
 	bg_scrap_mountain = 79444900262774,
 	bg_scrap_mountain_far = 78604914520064,
 	bg_skyline = 90939575036678,
