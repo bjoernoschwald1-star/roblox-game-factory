@@ -4,6 +4,13 @@
 -- erhaelt fertige Vorlagen ueber ReplicatedStorage.JunkyardModels (siehe MeshModels).
 
 return {
+	bg_bush = 79498812612416,
+	bg_dune = 111203181136245,
+	bg_power_pole = 137592273296351,
+	bg_scrap_mountain = 79444900262774,
+	bg_scrap_mountain_far = 78604914520064,
+	bg_skyline = 90939575036678,
+	bg_tree = 100006517597026,
 	item_barrel_chrome = 91360530511425,
 	item_barrel_gold = 120427981349944,
 	item_barrel_neon = 110425295393576,

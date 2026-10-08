@@ -134,34 +134,41 @@ function MeshModels.visual(template: MeshPart, rows: { { any } }, pivot: CFrame,
 end
 
 -- Laedt alle Modelle parallel; loader(assetId) -> Instance (Standard InsertService:LoadAsset). Liefert die
--- MeshPart-Vorlagen je Name und die Namen, die nicht geladen werden konnten (mit Grund).
+-- MeshPart-Vorlage je Name (erster MeshPart), das ganze importierte Model je Name (fuer mehrteilige Modelle wie
+-- die Hintergrund-Kulisse) und die Namen, die nicht geladen werden konnten (mit Grund).
 function MeshModels.loadAll(
 	ids: { [string]: number },
 	loader: ((number) -> Instance)?,
 	timeoutSeconds: number?
-): ({ [string]: MeshPart }, { string })
+): ({ [string]: MeshPart }, { string }, { [string]: Model })
 	local load = loader
 		or function(assetId: number): Instance
 			return game:GetService("InsertService"):LoadAsset(assetId)
 		end
 	local templates: { [string]: MeshPart } = {}
+	local models: { [string]: Model } = {}
 	local failed: { string } = {}
 	local pending = 0
 	for name, assetId in ids do
 		pending += 1
 		task.spawn(function()
 			local ok, result = pcall(load, assetId)
-			local mesh = if ok and typeof(result) == "Instance"
-				then result:FindFirstChildWhichIsA("MeshPart", true)
-				else nil
+			local loaded = if ok and typeof(result) == "Instance" then result else nil
+			local inner = if loaded ~= nil then loaded:FindFirstChildWhichIsA("Model") else nil
+			local mesh = if loaded ~= nil then loaded:FindFirstChildWhichIsA("MeshPart", true) else nil
 			if mesh ~= nil then
-				mesh.Parent = nil
 				templates[name] = mesh
+				if inner ~= nil then
+					inner.Parent = nil
+					models[name] = inner
+				else
+					mesh.Parent = nil
+				end
 			else
 				table.insert(failed, name .. ": " .. (if ok then "kein MeshPart" else tostring(result)))
 			end
-			if ok and typeof(result) == "Instance" then
-				result:Destroy()
+			if loaded ~= nil and loaded ~= inner then
+				loaded:Destroy()
 			end
 			pending -= 1
 		end)
@@ -174,7 +181,7 @@ function MeshModels.loadAll(
 		table.insert(failed, pending .. " Modelle nach Zeitlimit nicht geladen")
 	end
 	table.sort(failed)
-	return templates, failed
+	return templates, failed, models
 end
 
 -- Item-Vorlagen fuer den Client: je Asset ein Model mit dem eingefaerbten MeshPart, Drehpunkt Mitte unten im

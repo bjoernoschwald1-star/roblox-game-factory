@@ -1,6 +1,41 @@
 {
   "assets": [
     {
+      "file": "bg_bush.fbx",
+      "assetId": "79498812612416",
+      "status": "Approved"
+    },
+    {
+      "file": "bg_dune.fbx",
+      "assetId": "111203181136245",
+      "status": "Approved"
+    },
+    {
+      "file": "bg_power_pole.fbx",
+      "assetId": "137592273296351",
+      "status": "Approved"
+    },
+    {
+      "file": "bg_scrap_mountain.fbx",
+      "assetId": "79444900262774",
+      "status": "Approved"
+    },
+    {
+      "file": "bg_scrap_mountain_far.fbx",
+      "assetId": "78604914520064",
+      "status": "Approved"
+    },
+    {
+      "file": "bg_skyline.fbx",
+      "assetId": "90939575036678",
+      "status": "Approved"
+    },
+    {
+      "file": "bg_tree.fbx",
+      "assetId": "100006517597026",
+      "status": "Approved"
+    },
+    {
       "file": "item_barrel_chrome.fbx",
       "assetId": "91360530511425",
       "status": "Approved"

@@ -198,13 +198,14 @@ local lighting = {
 		GlobalShadows = true,
 		ExposureCompensation = 0.1,
 	},
+	-- Leichter warmer Dunst: nah klar, zum Horizont weich auslaufend (Fabrik-Silhouette nur noch als Schemen).
 	atmosphere = {
-		Density = 0.3,
-		Offset = 0.2,
-		Color = Color3.fromRGB(230, 205, 170),
-		Decay = Color3.fromRGB(170, 130, 100),
+		Density = 0.28,
+		Offset = 0.12,
+		Color = Color3.fromRGB(232, 206, 168),
+		Decay = Color3.fromRGB(190, 145, 105),
 		Glare = 0.25,
-		Haze = 0.8,
+		Haze = 1.4,
 	},
 	colorCorrection = {
 		Brightness = 0.02,

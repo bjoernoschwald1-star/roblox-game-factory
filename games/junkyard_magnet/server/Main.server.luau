@@ -14,6 +14,7 @@ local ServerConfig = require(script.Parent:WaitForChild("ServerConfig"))
 local World = require(script.Parent:WaitForChild("World"))
 local PropShapes = require(script.Parent:WaitForChild("PropShapes"))
 local MeshModels = require(script.Parent:WaitForChild("MeshModels"))
+local Backdrop = require(script.Parent:WaitForChild("Backdrop"))
 local ModelAssets = require(script.Parent:WaitForChild("ModelAssets"))
 local ItemShapes = require(ReplicatedStorage:WaitForChild("JunkyardShared"):WaitForChild("ItemShapes"))
 
@@ -25,11 +26,19 @@ if #lightingErrors > 0 then
 	warn("[Junkyard] lighting profile: " .. table.concat(lightingErrors, "; "))
 end
 -- Hochgeladene Modelle laden (Ersatz: Bauteile); Item-Vorlagen fuer den Client in ReplicatedStorage.
-local templates, failedModels = MeshModels.loadAll(ModelAssets)
+local templates, failedModels, loadedModels = MeshModels.loadAll(ModelAssets)
 if #failedModels > 0 then
 	warn("[Junkyard] Modelle nicht geladen, Bauteile als Ersatz: " .. table.concat(failedModels, "; "))
 end
 World.useModels(templates)
+-- Hintergrund-Kulisse (bg_*): mehrteilige Modelle, nach Teilnamen eingefaerbt.
+local backdropTemplates: { [string]: Model } = {}
+for name, model in loadedModels do
+	if string.sub(name, 1, 3) == "bg_" then
+		backdropTemplates[name] = Backdrop.prepare(model)
+	end
+end
+World.useBackdrop(backdropTemplates)
 local modelFolder = Instance.new("Folder")
 modelFolder.Name = MeshModels.FOLDER_NAME
 MeshModels.itemTemplates(templates, ItemShapes :: any, ITEM_SCALE, modelFolder)

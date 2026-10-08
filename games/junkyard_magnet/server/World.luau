@@ -1,11 +1,16 @@
 --!strict
 -- Baut den Schrottplatz von Junkyard Magnet nach der Welt-Konvention des Cores, falls er noch nicht existiert:
---   <parent>.FactoryWorld.Floor                  Sandboden
+--   Workspace.Terrain                            Boden (Ground): Sand weit ueber den Zaun hinaus, Zonenflaechen in
+--                                                eigener Bodenart; nur ohne Terrain (parent ~= workspace) eine
+--                                                Sandplatte <parent>.FactoryWorld.Floor
 --   <parent>.FactoryWorld.Zones.<zoneId>         je eine Schrottflaeche pro Zone (Items erscheinen darauf)
 --   <parent>.FactoryWorld.SellAreas.SellArea     Verkaufs-Volumen an der Waage (unsichtbar, ohne Kollision)
 --   <parent>.FactoryWorld.Props.*                Kulisse aus den Blender-Objekten (Zaun, Wracks, Reifen, Kran ...)
 --   <parent>.FactoryWorld.Signs.<zoneId>         Schild mit Zonenname vor jeder Zone
 --   <parent>.FactoryWorld.Spawn                  SpawnLocation an der Waage
+--   <parent>.FactoryWorld.Backdrop               Hintergrund ausserhalb des Zauns (Backdrop, World.useBackdrop)
+-- Die Zonen-Parts bleiben als begehbare Flaeche (Items liegen auf ihrer Oberseite), sind mit Terrain aber
+-- unsichtbar; sichtbar ist die weich berandete Terrain-Flaeche darunter.
 -- Kulisse: Grundformen aus server/PropShapes.luau (erzeugt aus den Blender-Skripten, art/scripts/jm_roblox.py) als
 -- verankerte Parts - spielbar ohne Mesh-Upload. Keine Unions, keine Asset-IDs.
 -- Hochgeladene Modelle (World.useModels, Vorlagen aus MeshModels): Dann zeigt ein MeshPart das Objekt; die
@@ -14,6 +19,8 @@
 -- unsichtbaren. Fehlt ein Modell, bleibt die sichtbare Bauteil-Version.
 local PropShapes = require(script.Parent:WaitForChild("PropShapes"))
 local MeshModels = require(script.Parent:WaitForChild("MeshModels"))
+local Ground = require(script.Parent:WaitForChild("Ground"))
+local Backdrop = require(script.Parent:WaitForChild("Backdrop"))
 
 local World = {}
 
@@ -21,9 +28,16 @@ World.ROOT_NAME = "FactoryWorld"
 
 local models: { [string]: MeshPart } = {}
 
+local backdrop: { [string]: Model } = {}
+
 -- MeshPart-Vorlagen je Objektname (leer = nur Bauteile).
 function World.useModels(templates: { [string]: MeshPart })
 	models = templates
+end
+
+-- Vorbereitete Hintergrund-Vorlagen (Backdrop.prepare) je Name; leer = kein Hintergrund.
+function World.useBackdrop(templates: { [string]: Model })
+	backdrop = templates
 end
 
 local ZONE_SIZE = Vector3.new(44, 1, 44)
@@ -159,14 +173,23 @@ function World.build(config: any, parent: Instance?): Instance
 	local span = #zoneIds * ZONE_SIZE.X + (#zoneIds - 1) * ZONE_GAP
 	local minX, maxX = -40, span + 40
 	local minZ, maxZ = -ZONE_SIZE.Z / 2 - SELL_OFFSET - 30, ZONE_SIZE.Z / 2 + 40
-	part(
-		"Floor",
-		-- Oberkante bei y 0,1: liegt sicher ueber einer Baseplate einer Studio-Vorlage (Oberkante y 0).
-		Vector3.new(maxX - minX + 40, 1.2, maxZ - minZ + 40),
-		CFrame.new((minX + maxX) / 2, -0.5, (minZ + maxZ) / 2),
-		Color3.fromHex("#D9B98A"),
-		root
-	)
+	local useTerrain = container == workspace
+	if useTerrain then
+		-- Die Baseplate einer Studio-Vorlage laege genau in der Terrain-Oberkante (y 0) und flackerte.
+		local baseplate = workspace:FindFirstChild("Baseplate")
+		if baseplate ~= nil and baseplate:IsA("BasePart") then
+			baseplate:Destroy()
+		end
+	else
+		part(
+			"Floor",
+			Vector3.new(maxX - minX + 40, 1.2, maxZ - minZ + 40),
+			CFrame.new((minX + maxX) / 2, -0.5, (minZ + maxZ) / 2),
+			Color3.fromHex("#D9B98A"),
+			root
+		)
+	end
+	local zoneAreas: { Ground.ZoneArea } = {}
 
 	local zones = Instance.new("Folder")
 	zones.Name = "Zones"
@@ -180,7 +203,15 @@ function World.build(config: any, parent: Instance?): Instance
 	local frontZ = -ZONE_SIZE.Z / 2
 	for index, zoneId in zoneIds do
 		local x = (index - 1) * (ZONE_SIZE.X + ZONE_GAP) + ZONE_SIZE.X / 2
-		part(zoneId, ZONE_SIZE, CFrame.new(x, ZONE_SIZE.Y / 2, 0), ZONE_TINTS[(index - 1) % #ZONE_TINTS + 1], zones)
+		-- Mit Terrain liegt die (unsichtbare) Zonen-Oberseite auf Bodenhoehe y 0, sonst als Platte bei y 1.
+		local zoneY = if useTerrain then -ZONE_SIZE.Y / 2 else ZONE_SIZE.Y / 2
+		local zonePart =
+			part(zoneId, ZONE_SIZE, CFrame.new(x, zoneY, 0), ZONE_TINTS[(index - 1) % #ZONE_TINTS + 1], zones)
+		if useTerrain then
+			zonePart.Transparency = 1
+			zonePart.CastShadow = false
+		end
+		table.insert(zoneAreas, { center = zonePart.Position, size = zonePart.Size })
 		local board =
 			part("Board", Vector3.new(14, 3, 0.6), CFrame.new(x, 8, frontZ - 2), Color3.fromHex("#8A3B1E"), signs)
 		sign(board, textFor(config, config.zones[zoneId].nameKey, zoneId))
@@ -436,6 +467,14 @@ function World.build(config: any, parent: Instance?): Instance
 	fenceLine(Vector3.new(minX, 0, minZ), Vector3.new(maxX, 0, minZ), 0)
 	fenceLine(Vector3.new(minX, 0, minZ), Vector3.new(minX, 0, maxZ), 90)
 	fenceLine(Vector3.new(maxX, 0, minZ), Vector3.new(maxX, 0, maxZ), -90)
+
+	local bounds = { minX = minX, maxX = maxX, minZ = minZ, maxZ = maxZ }
+	if useTerrain then
+		Ground.build(workspace.Terrain, bounds, zoneAreas)
+	end
+	if next(backdrop) ~= nil then
+		Backdrop.build(backdrop, bounds, root)
+	end
 
 	root.Parent = container
 	-- Andere SpawnLocations (z. B. aus einer Studio-Vorlage) zur Laufzeit abschalten; gespawnt wird an der Waage.
