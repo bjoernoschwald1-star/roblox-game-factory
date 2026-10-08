@@ -16,6 +16,7 @@ import check_secrets
 REQUIRED = ["testwert-pflicht-eins-0001", "testwert-pflicht-zwei-0002"]
 OPTIONAL = "testwert-optional-asset-0003"
 SHORT_OPTIONAL = "kurz-0004"
+PRODUCTION = "testwert-optional-production-0005"
 
 
 class CheckSecretsTest(unittest.TestCase):
@@ -62,14 +63,14 @@ class CheckSecretsTest(unittest.TestCase):
         code, out, err = self.run_main([OPTIONAL])
         self.assertEqual(code, 1)
         self.assertIn(f"FUND: Schluesselwert in {lock}", out)
-        self.assertIn("(optional: 1 von 1)", out)
+        self.assertIn("(optional: 1 von 2)", out)
         self.assert_no_values(out, err)
 
     def test_missing_optional_is_no_error(self):
         (self.root / "assets.lock.json").write_text(OPTIONAL, encoding="utf-8")
         code, out, err = self.run_main([])
         self.assertEqual(code, 0)
-        self.assertIn("check_secrets: 2 Dateien geprueft, 0 Funde (optional: 0 von 1)", out)
+        self.assertIn("check_secrets: 2 Dateien geprueft, 0 Funde (optional: 0 von 2)", out)
         self.assert_no_values(out, err)
 
     def test_short_optional_value_is_ignored(self):
@@ -77,7 +78,7 @@ class CheckSecretsTest(unittest.TestCase):
         self.assertEqual(check_secrets.usable_optional([SHORT_OPTIONAL, "", OPTIONAL]), [OPTIONAL])
         code, out, err = self.run_main([SHORT_OPTIONAL])
         self.assertEqual(code, 0)
-        self.assertIn("(optional: 0 von 1)", out)
+        self.assertIn("(optional: 0 von 2)", out)
         self.assert_no_values(out, err)
 
     def test_missing_required_still_exit_2(self):
@@ -97,9 +98,24 @@ class CheckSecretsTest(unittest.TestCase):
         (self.root / ".git" / "config").write_text(REQUIRED[1], encoding="utf-8")
         code, out, err = self.run_main([OPTIONAL])
         self.assertEqual(code, 0)
-        self.assertIn("check_secrets: 1 Dateien geprueft, 0 Funde (optional: 1 von 1)", out)
+        self.assertIn("check_secrets: 1 Dateien geprueft, 0 Funde (optional: 1 von 2)", out)
         self.assert_no_values(out, err)
 
+
+    def test_production_key_is_optional_and_searched(self):
+        self.assertIn("ROBLOX_PRODUCTION_API_KEY", check_secrets.OPTIONAL_SECRET_VARS)
+        leak = self.root / "deploy" / "production-log.md"
+        leak.parent.mkdir()
+        leak.write_text(f"key {PRODUCTION}", encoding="utf-8")
+        code, out, err = self.run_main([OPTIONAL, PRODUCTION])
+        self.assertEqual(code, 1)
+        self.assertIn(f"FUND: Schluesselwert in {leak}", out)
+        self.assertIn("(optional: 2 von 2)", out)
+        self.assertNotIn(PRODUCTION, out + err)
+        leak.unlink()
+        code, out, err = self.run_main([OPTIONAL])
+        self.assertEqual(code, 0)
+        self.assertIn("(optional: 1 von 2)", out)
 
 if __name__ == "__main__":
     unittest.main()

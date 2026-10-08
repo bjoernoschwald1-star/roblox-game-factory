@@ -20,12 +20,16 @@ LOG_DIR = BUILD_DIR / "logs"
 PLACE_FILE = BUILD_DIR / "spike.rbxl"
 
 SECRET_VARS = ("ROBLOX_CI_API_KEY", "ROBLOX_STAGING_API_KEY")
-# Optionale Schluessel (z. B. nur lokal fuer Asset-Uploads); fehlen sie, ist das kein Fehler.
-OPTIONAL_SECRET_VARS = ("ROBLOX_ASSETS_API_KEY",)
+# Optionale Schluessel (nur lokal: Asset-Uploads, manueller Production-Publish); fehlen sie, ist das kein Fehler.
+OPTIONAL_SECRET_VARS = ("ROBLOX_ASSETS_API_KEY", "ROBLOX_PRODUCTION_API_KEY")
 TARGETS = {
     "ci": ("ROBLOX_CI_API_KEY", "ROBLOX_CI_UNIVERSE_ID", "ROBLOX_CI_PLACE_ID"),
     "staging": ("ROBLOX_STAGING_API_KEY", "ROBLOX_STAGING_UNIVERSE_ID", "ROBLOX_STAGING_PLACE_ID"),
 }
+# Production (Live-Spiel): nur manuell ueber publish.py --target production; IDs aus der committeten
+# deploy/production.json (nicht geheim), Schluessel nur aus ROBLOX_PRODUCTION_API_KEY. Die CI kennt dieses Ziel nicht.
+PRODUCTION_KEY_VAR = "ROBLOX_PRODUCTION_API_KEY"
+PRODUCTION_FILE = REPO_ROOT / "deploy" / "production.json"
 
 EXIT_INFRA = 2
 EXIT_AUTH = 3
@@ -85,7 +89,7 @@ def optional_secret_values() -> list[str]:
 
 
 def redact(text: str) -> str:
-    for value in secret_values():
+    for value in secret_values() + optional_secret_values():
         text = text.replace(value, "***REDACTED***")
     return text
 
@@ -95,7 +99,22 @@ def fail(message: str, code: int):
     sys.exit(code)
 
 
+def production_ids(path: Path = PRODUCTION_FILE) -> tuple[str, str]:
+    """(universeId, placeId) aus deploy/production.json; beide als positive ganze Zahlen geprueft."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        universe, place = str(int(data["universeId"])), str(int(data["placeId"]))
+    except (OSError, ValueError, KeyError, TypeError) as err:
+        fail(f"{path} fehlt oder ist ungueltig: {err}", EXIT_INFRA)
+    if int(universe) <= 0 or int(place) <= 0:
+        fail(f"{path}: IDs muessen positiv sein.", EXIT_INFRA)
+    return universe, place
+
+
 def target_config(target: str) -> tuple[str, str, str]:
+    if target == "production":
+        universe, place = production_ids()
+        return env(PRODUCTION_KEY_VAR), universe, place
     key_var, universe_var, place_var = TARGETS[target]
     return env(key_var), env(universe_var), env(place_var)
 
