@@ -72,6 +72,8 @@ end
 
 local runtime = ServerRuntime.start(ServerConfig, {
 	dataStoreName = "junkyard_profiles_v1",
+	-- 30 s statt 60 s: Upgrades und Zonenkaeufe werden nicht einzeln gespeichert (QA release-1, Befund 3).
+	autosaveSeconds = 30,
 	storage = if game.PlaceId == 0 then memoryStorage() else nil,
 })
 -- Nur im lokalen Studio-Spieltest (PlaceId 0): Coins gutschreiben fuer die Pruefung der Schmelze ueber Studio-MCP.

@@ -57,6 +57,7 @@ type PlayerState = {
 }
 
 local NAME_PATTERN = "^[a-z][%w]*$"
+local ID_MAX_LENGTH = 64
 
 local function isFinite(value: any): boolean
 	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
@@ -104,7 +105,8 @@ local function matches(spec: ArgSpec, value: any): boolean
 		end
 		return spec.maxMagnitude == nil or value.Magnitude <= (spec.maxMagnitude :: number)
 	elseif spec.type == "id" then
-		if type(value) ~= "string" or value == "" then
+		-- IDs sind kurz; lange Strings werden ohne isKnown-Aufruf abgelehnt (QA release-1, Befund 5).
+		if type(value) ~= "string" or value == "" or #value > ID_MAX_LENGTH then
 			return false
 		end
 		local ok, known = pcall(spec.isKnown :: (string) -> boolean, value)

@@ -11,6 +11,10 @@
 -- Remote "stateUpdate" (nur an den jeweiligen Spieler).
 -- Shutdown (BindToClose, Roblox wartet hoechstens 30 s): alle Spieler werden parallel abgemeldet und freigegeben;
 -- nach shutdownBudgetSeconds werden nicht freigegebene Spieler per warn gemeldet.
+-- Bewegungspruefung (MovementGuard, Standard an; options.movement = false schaltet ab): Die Charakterposition ist
+-- vom Client repliziert. Jede Positionsabfrage (collect, sell) und ein fester Takt (movementSeconds, Standard 0,25 s)
+-- vergleichen sie mit der letzten Probe; nach einem unmoeglichen Sprung (Teleport) liefert getPosition fuer einige
+-- Sekunden nil und canSell false. Ein neuer Charakter (Respawn) beginnt ohne Vergleich.
 -- Ohne Paesse in der Config (passes = {}) gibt es keinen Pass-Prompt-Handler; ownsPass wird dann nie gefragt.
 -- Der Receipt-Handler bleibt immer gesetzt (unbekannte Produkte -> NotProcessedYet wie bisher).
 --
@@ -24,6 +28,7 @@ local CharacterAdapter = require(script.Parent.CharacterAdapter)
 local GameServer = require(script.Parent.Parent.GameServer)
 local Log = require(script.Parent.Parent.Parent.shared.Log)
 local MarketAdapter = require(script.Parent.MarketAdapter)
+local MovementGuard = require(script.Parent.Parent.MovementGuard)
 local PlayersAdapter = require(script.Parent.PlayersAdapter)
 local RemoteBinder = require(script.Parent.RemoteBinder)
 local RobloxDataStoreAdapter = require(script.Parent.Parent.Storage.RobloxDataStoreAdapter)
@@ -59,6 +64,8 @@ export type Options = {
 	shutdownBudgetSeconds: number?,
 	loadFailedMessage: string?,
 	stateSeconds: number?, -- Takt fuer flushState (Standard 0.2)
+	movement: (MovementGuard.Options | boolean)?, -- false = keine Bewegungspruefung
+	movementSeconds: number?, -- Takt der Bewegungsproben (Standard 0.25)
 	leaderstatsParent: ((player: any) -> Instance?)?,
 	clock: (() -> number)?,
 	sleep: ((seconds: number) -> ())?,
@@ -204,18 +211,43 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 		end
 	end
 
+	local now: () -> number = options.clock or function()
+		return DateTime.now().UnixTimestampMillis / 1000
+	end
+	local guard: MovementGuard.MovementGuard? = if options.movement == false
+		then nil
+		else MovementGuard.new(if type(options.movement) == "table" then options.movement else nil)
+	-- Kennung des aktuellen Charakters (neuer Charakter = neuer Ausgangspunkt); Fake-Spieler ohne Charakter: nil.
+	local function characterToken(player: any): any
+		local ok, token = pcall(function()
+			return player.Character
+		end)
+		return if ok then token else nil
+	end
+	-- Rohposition plus Bewegungsprobe; nil, wenn kein Charakter oder nach einem Sprung gesperrt.
+	local function sample(userId: number): Vector3?
+		local player = players[userId]
+		if player == nil then
+			return nil
+		end
+		local position = character:position(player)
+		if guard == nil then
+			return position
+		end
+		if not guard:check(userId, position, characterToken(player), now()) then
+			return nil
+		end
+		return position
+	end
 	local function positionOf(ctx): Vector3?
-		local player = players[ctx.userId]
-		return if player ~= nil then character:position(player) else nil
+		return sample(ctx.userId)
 	end
 
 	local composed = GameServer.compose(config, {
 		storage = storage :: StorageAdapter.StorageAdapter,
 		dataStoreKeyPrefix = options.keyPrefix or DEFAULT_KEY_PREFIX,
 		serverId = options.serverId or defaultServerId(),
-		clock = options.clock or function()
-			return DateTime.now().UnixTimestampMillis / 1000
-		end,
+		clock = now,
 		sleep = options.sleep,
 		rng = options.rng or Random.new(),
 		spawnPosition = function(zoneId: string, rng: Random): Vector3
@@ -288,6 +320,9 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 		composed:playerLeaving({ userId = userId })
 		players[userId] = nil
 		removeLeaderstats(userId)
+		if guard ~= nil then
+			guard:forget(userId)
+		end
 	end
 
 	table.insert(connections, playersAdapter:onAdded(onAdded))
@@ -355,6 +390,16 @@ function ServerRuntime.start(config: Schema.GameConfig, options: Options): Runti
 			composed:flushState()
 		end)
 	)
+	if guard ~= nil then
+		table.insert(
+			stops,
+			scheduler:every(options.movementSeconds or 0.25, function()
+				for userId in players do
+					sample(userId)
+				end
+			end)
+		)
+	end
 	table.insert(
 		stops,
 		scheduler:every(options.autosaveSeconds or 60, function()

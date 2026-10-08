@@ -1,5 +1,5 @@
 --!strict
--- Tests 77-86, 99, 129-130: ServerRuntime mit Fake-Adaptern (Spieler, Charakter, Remotes, Welt, Analytics, Scheduler,
+-- Tests 77-86, 99, 129-130, 150: ServerRuntime mit Fake-Adaptern (Spieler, Charakter, Remotes, Welt, Analytics, Scheduler,
 -- Lifecycle) und dem echten MarketAdapter ueber einem Fake-MarketplaceService. Speicher: MemoryAdapter.
 local ServerScriptService = game:GetService("ServerScriptService")
 local FactoryCore = ServerScriptService.FactoryCore
@@ -250,6 +250,8 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			t.expect(modules.inventory:count(ctx)).toBe(8)
 			t.expect(modules.economy:balance(ctx)).toBe(20)
 
+			-- Hinlaufen statt Teleport: 60 Studs in 2 s ist fuer die Bewegungspruefung plausibel.
+			env.now += 2
 			env.positions[101] = Vector3.new(60, 0, 0)
 			env.remoteHandlers.sell(player)
 			t.expect(modules.inventory:count(ctx)).toBe(0)
@@ -463,6 +465,7 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 
 				env.positions[101] = Vector3.new(0, 0, 0)
 				env.remoteHandlers.collect(player)
+				env.now += 2
 				env.positions[101] = Vector3.new(60, 0, 0)
 				env.remoteHandlers.sell(player)
 				-- StateSync sendet je Spieler hoechstens alle 0,2 s (Uhr aus env.now).
@@ -509,6 +512,73 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				})
 				t.expect(decision).toBe(Enum.ProductPurchaseDecision.NotProcessedYet)
 				runtime:stop()
+			end
+		)
+
+		t.it(
+			"150 movement check: teleport blocks collect and sell for a while; walking and respawn stay allowed",
+			function()
+				local env = newEnv()
+				local runtime = start(env)
+				local player = fakePlayer(101)
+				env.added:Fire(player)
+				local modules = runtime.game.modules
+				local ctx = { userId = 101 }
+				env.positions[101] = Vector3.new(0, 0, 0)
+				env.remoteHandlers.collect(player)
+				t.expect(modules.inventory:count(ctx)).toBe(8)
+
+				-- Teleport in die Verkaufsflaeche (60 Studs ohne Zeit): kein Verkauf, auch nicht nach 1 s.
+				env.positions[101] = Vector3.new(60, 0, 0)
+				env.remoteHandlers.sell(player)
+				t.expect(modules.inventory:count(ctx)).toBe(8)
+				env.now += 1
+				env.scheduler:advance(0.25)
+				env.remoteHandlers.sell(player)
+				t.expect(modules.inventory:count(ctx)).toBe(8)
+				-- Nach der Sperre (3 s) wirkt der Verkauf wieder.
+				env.now += 2.5
+				env.scheduler:advance(0.25)
+				env.remoteHandlers.sell(player)
+				t.expect(modules.inventory:count(ctx)).toBe(0)
+
+				-- Laufen (16 Studs/s in Proben je 0,25 s) bleibt frei; Fallen (nur Hoehe) ebenso.
+				for _ = 1, 8 do
+					env.now += 0.25
+					env.positions[101] = env.positions[101] - Vector3.new(4, 0, 0)
+					env.scheduler:advance(0.25)
+				end
+				-- Von x = 28 zurueck in die Verkaufsflaeche des Fakes (x >= 50), dann 30 Studs fallen: Verkauf wirkt.
+				for _ = 1, 8 do
+					env.now += 0.25
+					env.positions[101] = env.positions[101] + Vector3.new(4, 0, 0)
+					env.scheduler:advance(0.25)
+				end
+				env.now += 0.25
+				env.positions[101] = env.positions[101] - Vector3.new(0, 30, 0)
+				modules.inventory:add(ctx, "item_small", 1)
+				env.remoteHandlers.sell(player)
+				t.expect(modules.inventory:count(ctx)).toBe(0)
+
+				-- Respawn: neuer Charakter (anderes token) an anderer Stelle ist kein Teleport.
+				player.Character = {}
+				env.positions[101] = Vector3.new(60, 0, 0)
+				modules.inventory:add(ctx, "item_small", 1)
+				env.remoteHandlers.sell(player)
+				t.expect(modules.inventory:count(ctx)).toBe(0)
+
+				-- Abschaltbar: movement = false laesst Spruenge zu (Tests, besondere Games).
+				runtime:stop()
+				local free = newEnv()
+				local unguarded = start(free, { movement = false })
+				local other = fakePlayer(102)
+				free.added:Fire(other)
+				free.positions[102] = Vector3.new(0, 0, 0)
+				free.remoteHandlers.collect(other)
+				free.positions[102] = Vector3.new(60, 0, 0)
+				free.remoteHandlers.sell(other)
+				t.expect(unguarded.game.modules.inventory:count({ userId = 102 })).toBe(0)
+				unguarded:stop()
 			end
 		)
 	end)

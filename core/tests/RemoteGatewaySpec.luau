@@ -1,8 +1,13 @@
 --!strict
--- Tests 59-62: einziger Eingang fuer Client-Anfragen mit Schema-Pruefung und Rate Limit.
-local FactoryCore = game:GetService("ServerScriptService").FactoryCore
+-- Tests 59-62: einziger Eingang fuer Client-Anfragen mit Schema-Pruefung und Rate Limit; 151: Nachbesserungen
+-- aus der Release-QA (ID-Laenge, MovementGuard, Prestige-Schwelle).
+local ServerScriptService = game:GetService("ServerScriptService")
+local FactoryCore = ServerScriptService.FactoryCore
 local Runner = require(FactoryCore.testing.Runner)
 local RemoteGateway = require(FactoryCore.server.RemoteGateway)
+local MovementGuard = require(FactoryCore.server.MovementGuard)
+local Validator = require(FactoryCore.server.Config.Validator)
+local SampleConfig = require(ServerScriptService.FactoryCoreTests.fixtures.SampleConfig)
 local Log = require(FactoryCore.shared.Log)
 
 local A = { userId = 101 }
@@ -161,5 +166,55 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 			local unsealed = RemoteGateway.new()
 			t.expect((pcall(unsealed.dispatch, unsealed, A, "ping"))).toBe(false)
 		end)
+
+		t.it(
+			"151 release QA: id arguments over 64 characters, MovementGuard rules, prestige threshold vs startCoins",
+			function()
+				local gateway = RemoteGateway.new({
+					clock = function()
+						return 0
+					end,
+				})
+				local seen = 0
+				gateway:register("pick", {
+					args = {
+						{
+							type = "id",
+							isKnown = function()
+								seen += 1
+								return true
+							end,
+						},
+					},
+					rateLimit = { max = 100, windowSeconds = 1 },
+					handler = function() end,
+				})
+				gateway:seal()
+				local ctx = { userId = 1 }
+				t.expect({ gateway:dispatch(ctx, "pick", string.rep("a", 64)) }).toEqual({ true })
+				t.expect({ gateway:dispatch(ctx, "pick", string.rep("a", 65)) }).toEqual({ false, "BAD_ARGS" })
+				t.expect(seen).toBe(1)
+
+				local guard = MovementGuard.new({ maxSpeed = 20, slack = 2, blockSeconds = 3 })
+				t.expect(guard:check(7, Vector3.new(0, 0, 0), "a", 0)).toBe(true)
+				t.expect(guard:check(7, Vector3.new(5, 0, 0), "a", 0.25)).toBe(true) -- 5 <= 20 * 0,25 + 2
+				t.expect(guard:check(7, Vector3.new(5, -40, 0), "a", 0.3)).toBe(true) -- nur Hoehe
+				t.expect(guard:check(7, Vector3.new(30, 0, 0), "a", 0.5)).toBe(false) -- Sprung
+				t.expect(guard:blocked(7, 3.4)).toBe(true)
+				t.expect(guard:check(7, Vector3.new(30, 0, 0), "a", 3.6)).toBe(true)
+				t.expect(guard:check(7, nil, "a", 3.7)).toBe(false)
+				t.expect(guard:check(7, Vector3.new(500, 0, 0), "a", 3.8)).toBe(true) -- kein Ausgangspunkt
+				t.expect(guard:check(7, Vector3.new(-500, 0, 0), "b", 3.9)).toBe(true) -- neuer Charakter
+				guard:forget(7)
+				t.expect(guard:blocked(7, 4)).toBe(false)
+
+				local config: any = SampleConfig()
+				config.prestige = { coinsRequired = 20, sellBonusPerLevel = 0.5 }
+				local result = Validator.validate(config)
+				t.expect({ result.ok, result.errors[1].path }).toEqual({ false, "prestige.coinsRequired" })
+				config.prestige.coinsRequired = 21
+				t.expect(Validator.validate(config).ok).toBe(true)
+			end
+		)
 	end)
 end

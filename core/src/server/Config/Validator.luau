@@ -540,8 +540,14 @@ function Validator.validate(config: any): Result
 		if config.prestige ~= nil then
 			local prestige = tbl("prestige", config.prestige)
 			if prestige then
-				num("prestige.coinsRequired", prestige.coinsRequired, { integer = true, positive = true })
+				local requiredOk =
+					num("prestige.coinsRequired", prestige.coinsRequired, { integer = true, positive = true })
 				num("prestige.sellBonusPerLevel", prestige.sellBonusPerLevel, { positive = true })
+				-- Sonst waere direkt nach jedem Zuruecksetzen erneut Prestige moeglich (endlose Stufen).
+				local startCoins = if type(config.game) == "table" then config.game.startCoins else nil
+				if requiredOk and type(startCoins) == "number" and prestige.coinsRequired <= startCoins then
+					add("prestige.coinsRequired", "INVALID_VALUE", "prestige.coinsRequired must be > game.startCoins")
+				end
 			end
 		end
 

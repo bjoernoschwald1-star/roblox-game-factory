@@ -3,7 +3,8 @@
 -- "FactoryRemotes" mit je einem RemoteEvent pro Name an; vorhandene gleichnamige Instanzen werden
 -- wiederverwendet, nicht dupliziert. Antworten an den Client gibt es nie (nur RemoteEvent, keine RemoteFunction).
 -- fireClient(name, player, payload) sendet Server -> Client ueber ein RemoteEvent im selben Ordner (z. B.
--- "stateUpdate"); fuer diese Remotes gibt es keinen OnServerEvent-Handler, Client-Aufrufe darauf verpuffen.
+-- "stateUpdate"). Fuer diese Remotes haengt ein leerer OnServerEvent-Handler: Ohne Handler puffert Roblox
+-- Client-Aufrufe in einer Warteschlange (QA release-1, Befund 6); so werden sie sofort verworfen.
 -- Doku: https://create.roblox.com/docs/reference/engine/classes/RemoteEvent#OnServerEvent
 --       https://create.roblox.com/docs/reference/engine/classes/RemoteEvent#FireClient
 local PlayersAdapter = require(script.Parent.PlayersAdapter)
@@ -49,13 +50,19 @@ function RemoteBinder.new(parent: Instance?): RemoteBinder
 		return remote :: RemoteEvent
 	end
 
+	local drained: { [string]: RBXScriptConnection } = {}
+
 	local binder: RemoteBinder = {
 		bind = function(_self, name: string, handler: (player: any, ...any) -> ()): PlayersAdapter.Connection
 			return remoteEvent(name).OnServerEvent:Connect(handler)
 		end,
 
 		fireClient = function(_self, name: string, player: any, payload: any)
-			remoteEvent(name):FireClient(player, payload)
+			local remote = remoteEvent(name)
+			if drained[name] == nil then
+				drained[name] = remote.OnServerEvent:Connect(function() end)
+			end
+			remote:FireClient(player, payload)
 		end,
 	}
 	return binder
