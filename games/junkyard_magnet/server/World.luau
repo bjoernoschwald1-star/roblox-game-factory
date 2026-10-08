@@ -41,6 +41,11 @@ function World.useBackdrop(templates: { [string]: Model })
 end
 
 local ZONE_SIZE = Vector3.new(44, 1, 44)
+-- Zonen mit Deko am Rand (Reihenfolge 2 Autofriedhof, 3 Kranplatz): Die Items erscheinen nur auf der inneren
+-- Flaeche (Zonen-Part), der Randstreifen bis ZONE_SIZE traegt Wracks, Container und Faesser, die so keine Items
+-- verdecken. Die sichtbare Bodenflaeche bleibt ZONE_SIZE.
+local DECORATED_ZONES: { [number]: boolean } = { [2] = true, [3] = true }
+local DECORATED_SPAWN = Vector3.new(30, 1, 30)
 local ZONE_GAP = 16
 local SELL_OFFSET = 22
 local MATERIALS: { [string]: Enum.Material } = {
@@ -205,13 +210,14 @@ function World.build(config: any, parent: Instance?): Instance
 		local x = (index - 1) * (ZONE_SIZE.X + ZONE_GAP) + ZONE_SIZE.X / 2
 		-- Mit Terrain liegt die (unsichtbare) Zonen-Oberseite auf Bodenhoehe y 0, sonst als Platte bei y 1.
 		local zoneY = if useTerrain then -ZONE_SIZE.Y / 2 else ZONE_SIZE.Y / 2
+		local spawnSize = if DECORATED_ZONES[index] then DECORATED_SPAWN else ZONE_SIZE
 		local zonePart =
-			part(zoneId, ZONE_SIZE, CFrame.new(x, zoneY, 0), ZONE_TINTS[(index - 1) % #ZONE_TINTS + 1], zones)
+			part(zoneId, spawnSize, CFrame.new(x, zoneY, 0), ZONE_TINTS[(index - 1) % #ZONE_TINTS + 1], zones)
 		if useTerrain then
 			zonePart.Transparency = 1
 			zonePart.CastShadow = false
 		end
-		table.insert(zoneAreas, { center = zonePart.Position, size = zonePart.Size })
+		table.insert(zoneAreas, { center = zonePart.Position, size = ZONE_SIZE })
 		local board =
 			part("Board", Vector3.new(14, 3, 0.6), CFrame.new(x, 8, frontZ - 2), Color3.fromHex("#8A3B1E"), signs)
 		sign(board, textFor(config, config.zones[zoneId].nameKey, zoneId))
@@ -398,6 +404,26 @@ function World.build(config: any, parent: Instance?): Instance
 		end
 	end
 	barrelGroup(30, -66, 1)
+	-- Randdeko der Zonen 2 und 3 (ausserhalb der Item-Flaeche, Vorderkante mit Schild bleibt frei).
+	local function zoneX(index: number): number
+		return (index - 1) * (ZONE_SIZE.X + ZONE_GAP) + ZONE_SIZE.X / 2
+	end
+	if #zoneIds >= 2 then
+		local cx = zoneX(2)
+		stackedWrecks(cx - 19, 12, 90)
+		place("prop_car_wreck", cx, 19, 4)
+		place("prop_car_wreck", cx + 19, 11, 96)
+		place("prop_car_wreck", cx + 19, -11, 84)
+		place("prop_tire_stack", cx - 19, -13, 90)
+	end
+	if #zoneIds >= 3 then
+		local cx = zoneX(3)
+		place("prop_container", cx - 2, 19.5, 0)
+		place("prop_container", cx - 2, 19.5, 4, sizes.prop_container.size[2])
+		place("prop_container", cx + 19.5, -2, 90)
+		barrelGroup(cx - 21, -18, 3)
+		barrelGroup(cx - 21, 8, 4)
+	end
 	barrelGroup(-34, -42, 2)
 	barrelGroup(110, 30, 3)
 	barrelGroup(span + 10, -24, 4)

@@ -10,7 +10,7 @@ return {
 	bg_scrap_mountain = 79444900262774,
 	bg_scrap_mountain_far = 78604914520064,
 	bg_skyline = 90939575036678,
-	bg_tree = 100006517597026,
+	bg_tree = 106124613166783,
 	item_barrel_chrome = 91360530511425,
 	item_barrel_gold = 120427981349944,
 	item_barrel_neon = 110425295393576,

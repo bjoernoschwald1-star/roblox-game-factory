@@ -6,8 +6,8 @@
 - Flache Flächen (Flat Shading), kleine Fasen nur dort, wo Metall Glanzlichter fangen soll.
 - Keine Texte, Logos oder Marken, keine echten Fahrzeugmarken oder erkennbaren Markenprodukte. Keine Unions.
 
-## Palette (14 Farben, verbindlich)
-Die Werte stehen identisch in `scripts/jm_common.py` (`PALETTE`). Erweitert um zwei Farben (Rückmeldung Björn): dunkle Reifen und Grau-/Metalltöne für gemischte Schrotthaufen.
+## Palette (15 Farben, verbindlich)
+Die Werte stehen identisch in `scripts/jm_common.py` (`PALETTE`). Erweitert um zwei Farben (Rückmeldung Björn): dunkle Reifen und Grau-/Metalltöne für gemischte Schrotthaufen. Später ergänzt: Holzbraun für Baumstämme (vorher rust_dark, wirkte rot).
 
 - rust_dark `#8A3B1E`: Rost dunkel, Schmutzhügel, Rost-Akzente
 - rust_orange `#E0702E`: Rost hell (rusty, Hauptfarbe)
@@ -23,6 +23,7 @@ Die Werte stehen identisch in `scripts/jm_common.py` (`PALETTE`). Erweitert um z
 - sand `#D9B98A`: Boden
 - tire_black `#2B2B2E`: Reifen, Gummi
 - metal_gray `#6E7781`: Grautöne in Schrotthaufen, lackierte graue Teile
+- bark_brown `#6B4A2F`: Baumstämme, Holz
 
 ## Seltenheiten
 Jede Seltenheit ist eine Materialvariante derselben Form, mit Haupt- und Akzentmaterial. Die Werte sind Farbe, metallic, roughness und Emission.

@@ -68,7 +68,8 @@ local function wire(from: Vector3, to: Vector3, parent: Instance)
 	local part = Instance.new("Part")
 	part.Name = "Wire"
 	part.Shape = Enum.PartType.Cylinder
-	part.Size = Vector3.new((to - from).Magnitude, 0.15, 0.15)
+	-- 0,35 Studs: duenner wirkten die Leitungen auf Entfernung wie gestrichelte Linien.
+	part.Size = Vector3.new((to - from).Magnitude, 0.35, 0.35)
 	-- Zylinderachse ist lokal X: nach der Leitungsrichtung ausrichten.
 	part.CFrame = CFrame.lookAt((from + to) / 2, to) * CFrame.Angles(0, math.pi / 2, 0)
 	part.Color = WIRE_COLOR

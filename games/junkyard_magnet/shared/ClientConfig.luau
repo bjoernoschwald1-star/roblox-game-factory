@@ -226,10 +226,13 @@ local effects = {
 	unlocked = { textKey = "feedback_unlocked", color = PALETTE.olive_green },
 	full = { textKey = "feedback_full", color = PALETTE.magnet_red },
 	found = { textKey = "feedback_found", color = PALETTE.neon_pink },
-	-- Nur kostenlose Sounds des Erstellers "Roblox" aus dem Creator Store. Fuer Einsammeln, Upgrade, Freischalten
-	-- und seltenen Fund fand sich kein eindeutig passender Roblox-Sound; diese bleiben bewusst leer.
+	-- Nur kostenlose Sounds des Erstellers "Roblox" aus dem Creator Store (im Spieltest geladen, Laenge in Sekunden).
 	sounds = {
-		earned = "rbxassetid://127645268874265", -- CoinTransfer_01 (Roblox): Verkaufen
+		collected = "rbxassetid://12221990", -- electronicpingshort.wav (Roblox), 0,46 s: Einsammeln
+		earned = "rbxassetid://127645268874265", -- CoinTransfer_01 (Roblox), 1,66 s: Verkaufen
+		upgraded = "rbxassetid://10066947742", -- RBLX UI Purchase (SFX) (Roblox), 0,87 s: Upgrade gekauft
+		unlocked = "rbxassetid://12222253", -- victory.wav (Roblox), 1,21 s: Zone freigeschaltet
+		found = "rbxassetid://15675043410", -- Roblox_UI_Tonal_Stinger (Roblox), 1,47 s: seltener Fund
 	},
 }
 

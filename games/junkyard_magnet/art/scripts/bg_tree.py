@@ -19,7 +19,7 @@ def crown(b: jm.Builder, rng, radius, mat, loc):
 def build_tree(name: str):
     b = jm.Builder(name)
     rng = jm.seeded(51)
-    bark = jm.solid_material("rust_dark", 0.0, 0.9)
+    bark = jm.solid_material("bark_brown", 0.0, 0.9)
     leaves = jm.solid_material("olive_green", 0.0, 0.85)
     b.cylinder(0.9, 8.0, 6, bark, jm.transform((0, 0, 4.0)), radius_top=0.6)
     crown(b, rng, 4.2, leaves, (0, 0, 11.0))

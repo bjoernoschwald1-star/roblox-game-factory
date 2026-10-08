@@ -27,7 +27,7 @@ RENDER_DIR = REPO_ROOT / "build" / "art" / "renders"
 
 STUD_IN_METERS = 0.28
 
-# Verbindliche Palette (max. 12 Farben), identisch mit STYLE.md.
+# Verbindliche Palette (15 Farben), identisch mit STYLE.md.
 PALETTE = {
     "rust_dark": "#8A3B1E",
     "rust_orange": "#E0702E",
@@ -44,6 +44,8 @@ PALETTE = {
     # Ergaenzung (Bjoern): dunkle Reifen und Grau-/Metalltoene fuer gemischte Schrotthaufen.
     "tire_black": "#2B2B2E",
     "metal_gray": "#6E7781",
+    # Ergaenzung (Bjoern): Holzbraun fuer Baumstaemme (rust_dark wirkte rot).
+    "bark_brown": "#6B4A2F",
 }
 
 RARITIES = ("rusty", "chrome", "gold", "neon")
