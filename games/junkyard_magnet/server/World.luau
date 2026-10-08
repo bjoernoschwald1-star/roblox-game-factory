@@ -160,7 +160,8 @@ function World.buildProp(
 	return model
 end
 
-local function sign(target: Part, text: string)
+-- Schild-Text in der Standardsprache; das Attribut textKey erlaubt jedem Client, es lokal zu uebersetzen.
+local function sign(target: Part, text: string, textKey: string?)
 	local surface = Instance.new("SurfaceGui")
 	surface.Face = Enum.NormalId.Front
 	surface.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -174,6 +175,9 @@ local function sign(target: Part, text: string)
 	label.TextColor3 = Color3.fromRGB(255, 245, 230)
 	label.TextStrokeTransparency = 0.2
 	label.Text = text
+	if textKey ~= nil then
+		label:SetAttribute("textKey", textKey)
+	end
 	label.Parent = surface
 	surface.Parent = target
 end
@@ -245,7 +249,7 @@ function World.build(config: any, parent: Instance?): Instance
 		table.insert(zoneAreas, { center = zonePart.Position, size = ZONE_SIZE })
 		local board =
 			part("Board", Vector3.new(14, 3, 0.6), CFrame.new(x, 8, frontZ - 2), Color3.fromHex("#8A3B1E"), signs)
-		sign(board, textFor(config, config.zones[zoneId].nameKey, zoneId))
+		sign(board, textFor(config, config.zones[zoneId].nameKey, zoneId), config.zones[zoneId].nameKey)
 		for _, side in { -1, 1 } do
 			part(
 				"Post",

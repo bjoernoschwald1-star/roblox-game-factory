@@ -1,6 +1,7 @@
 --!strict
 -- Client-Teil der Junkyard-Magnet-Config (ReplicatedStorage.JunkyardShared.ClientConfig): nur Sichtbares.
--- Texte, uiTokens, assetStyles, rarityStyles, lighting, effects und Anzeige-Daten zu Items, Zonen und Upgrades.
+-- Texte je Sprache (textsByLanguage de/en, texts = Standardsprache), uiTokens, assetStyles, rarityStyles, lighting,
+-- effects und Anzeige-Daten zu Items, Zonen und Upgrades.
 -- Nie hier: Preise, Spawn-Gewichte, products, passes, remotes, sim. Die volle Config baut server/ServerConfig.luau.
 -- Seltenheiten als Materialvarianten (games/junkyard_magnet/art/STYLE.md): rusty = common, chrome = rare,
 -- gold = epic, neon = legendary. Asset-Schluessel = FBX-Namen in art/export (z. B. item_gear_gold).
@@ -157,9 +158,11 @@ local SHAPE_NAMES = {
 	barrel = "Fass",
 	anchor = "Anker",
 }
-local VARIANT_NAMES = { rusty = "Rostige", chrome = "Chrom-", gold = "Gold-", neon = "Neon-" }
+local VARIANT_NAMES = { rusty = "Rostig", chrome = "Chrom-", gold = "Gold-", neon = "Neon-" }
+-- Endung von "Rostig" nach Genus der Form (die Blechplatte, das Rohrstueck, der Anker).
+local RUSTY_ENDING = { plate = "e", pipe = "es", gear = "es", bolt = "e", barrel = "es", anchor = "er" }
 
-local texts = {
+local textsDe = {
 	rarity_common = "Gewöhnlich",
 	rarity_rare = "Selten",
 	rarity_epic = "Episch",
@@ -227,10 +230,98 @@ local texts = {
 }
 for shape, shapeName in SHAPE_NAMES do
 	for variant, variantName in VARIANT_NAMES do
-		local separator = if string.sub(variantName, -1) == "-" then "" else " "
-		texts["item_" .. shape .. "_" .. variant .. "_name"] = variantName .. separator .. shapeName
+		local prefix = if variant == "rusty" then variantName .. RUSTY_ENDING[shape] .. " " else variantName
+		textsDe["item_" .. shape .. "_" .. variant .. "_name"] = prefix .. shapeName
 	end
 end
+
+-- Englischer Textsatz: gleiche Schluessel wie textsDe (Test 152 prueft das), kurz und kindgerecht.
+local textsEn = {
+	rarity_common = "Common",
+	rarity_rare = "Rare",
+	rarity_epic = "Epic",
+	rarity_legendary = "Legendary",
+	zone_a_name = "Scrap Field",
+	zone_b_name = "Car Graveyard",
+	zone_c_name = "Crane Yard",
+	zone_d_name = "Harbor",
+	upgrade_range_name = "Magnet Range",
+	upgrade_capacity_name = "Cargo Space",
+	upgrade_sell_bonus_name = "Dealer Bonus",
+	hud_coins = "Coins: {coins}",
+	hud_inventory = "Cargo: {count} / {capacity}",
+	hud_full = "(full)",
+	hud_level = "Level {level}/{maxLevel}",
+	hud_cost = "{cost} coins",
+	hud_max = "MAX",
+	hud_zone_purchase = "{zone}: {cost} coins",
+	hud_zone_level = "{zone}: {upgrade} level {level}",
+	hud_zone_coins = "{zone}: from {amount} coins",
+	hud_zone_all = "All areas unlocked",
+	hud_unlock = "Unlock",
+	hud_collect = "Magnet",
+	hud_sell = "Sell",
+	hud_upgrades = "Upgrades",
+	hud_prestige = "Melt",
+	prestige_title = "Melt everything down?",
+	prestige_lose = "You lose: all coins, upgrades and areas.",
+	prestige_gain = "You get ×{multiplier} on every sale, forever.",
+	prestige_confirm = "Melt down",
+	prestige_cancel = "Cancel",
+	hud_album = "Album",
+	album_title = "Collection",
+	album_progress = "{found} / {total}",
+	album_row_progress = "{found}/{total}",
+	album_reward_coins = "+{coins} coins",
+	album_reward_bonus = "+{percent}% sales",
+	album_reward_done = "✓",
+	album_plate_name = "Plates",
+	album_pipe_name = "Pipes",
+	album_gear_name = "Gears",
+	album_bolt_name = "Bolts",
+	album_barrel_name = "Barrels",
+	album_anchor_name = "Anchors",
+	feedback_album_new = "New in your album! {item}",
+	feedback_album_complete = "Row complete: {group}!",
+	feedback_prestiged = "Melted down! Sales ×{multiplier}",
+	decimal_separator = ".",
+	hint_full = "Cargo full! Follow the beam to the scale.",
+	onboarding_collect = "Run to the scrap and pull it in with your magnet.",
+	onboarding_sell = "Take your cargo to the scale and sell it.",
+	onboarding_upgrade = "Buy an upgrade.",
+	onboarding_unlock = "Unlock the Car Graveyard.",
+	feedback_collected = "+{count}",
+	feedback_earned = "+{coins} coins",
+	feedback_upgraded = "Upgrade: {upgrade}",
+	feedback_unlocked = "Unlocked: {zone}",
+	feedback_full = "Cargo full!",
+	feedback_found = "{rarity}! {item}",
+	leaderstats_coins = "Coins",
+	leaderstats_zone = "Area",
+	sign_sell = "SCALE",
+	system_load_failed = "Your progress could not be loaded right now. Please rejoin in a moment.",
+}
+local SHAPE_NAMES_EN = {
+	plate = "Plate",
+	pipe = "Pipe",
+	gear = "Gear",
+	bolt = "Bolt",
+	barrel = "Barrel",
+	anchor = "Anchor",
+}
+local VARIANT_NAMES_EN = { rusty = "Rusty", chrome = "Chrome", gold = "Gold", neon = "Neon" }
+for shape, shapeName in SHAPE_NAMES_EN do
+	for variant, variantName in VARIANT_NAMES_EN do
+		textsEn["item_" .. shape .. "_" .. variant .. "_name"] = variantName .. " " .. shapeName
+	end
+end
+
+-- Sprachen: Der Client waehlt nach der Spieler-Locale (kit/src/Locale.luau; de-* -> de, sonst en). Was alle Spieler
+-- gemeinsam sehen und der Server setzt (Rangliste, Kick-Text), nutzt DEFAULT_LANGUAGE; Schilder in der Welt
+-- uebersetzt jeder Client lokal (Attribut textKey am Schild).
+local DEFAULT_LANGUAGE = "en"
+local textsByLanguage = { de = textsDe, en = textsEn }
+local texts = textsByLanguage[DEFAULT_LANGUAGE]
 
 -- Sichtbarkeit aus 15-20 m: jedes Teil schwebt und dreht sich; ab chrome Umriss und Funkeln, gold und neon
 -- zusaetzlich Lichtschein (Kit-Deckel fuer Lichter und Funkeln gilt weiter).
@@ -340,6 +431,8 @@ return {
 	album = albumDisplay,
 	albumGroups = albumGroups,
 	texts = texts,
+	textsByLanguage = textsByLanguage,
+	defaultLanguage = DEFAULT_LANGUAGE,
 	assetStyles = assetStyles,
 	rarityStyles = rarityStyles,
 	lighting = lighting,

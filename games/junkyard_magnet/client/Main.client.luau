@@ -21,6 +21,7 @@ local ItemView = require(FactoryKit:WaitForChild("ItemView"))
 local CollectFx = require(FactoryKit:WaitForChild("CollectFx"))
 local RangeView = require(FactoryKit:WaitForChild("RangeView"))
 local HudModel = require(FactoryKit:WaitForChild("HudModel"))
+local Locale = require(FactoryKit:WaitForChild("Locale"))
 local AlbumModel = require(FactoryKit:WaitForChild("AlbumModel"))
 local HudView = require(FactoryKit:WaitForChild("HudView"))
 local FeedbackModel = require(FactoryKit:WaitForChild("FeedbackModel"))
@@ -31,7 +32,31 @@ local InputModel = require(FactoryKit:WaitForChild("InputModel"))
 local InputView = require(FactoryKit:WaitForChild("InputView"))
 local ClientConfig = require(ReplicatedStorage:WaitForChild("JunkyardShared"):WaitForChild("ClientConfig"))
 
-local texts = ClientConfig.texts
+-- Sprache nach der Spieler-Locale (de-* -> Deutsch, sonst Englisch). Nur im lokalen Studio-Spieltest
+-- (PlaceId 0) erzwingt das Workspace-Attribut StudioLocale (z. B. "en-us") eine Sprache fuer Pruefungen.
+local studioLocale = if game.PlaceId == 0 then workspace:GetAttribute("StudioLocale") else nil
+local localeId = if type(studioLocale) == "string" then studioLocale else Locale.localeOf(player)
+local language = Locale.languageFor(localeId, ClientConfig.textsByLanguage, ClientConfig.defaultLanguage)
+local texts = Locale.texts(ClientConfig.textsByLanguage, language, ClientConfig.defaultLanguage)
+
+-- Schilder der Welt (vom Server in der Standardsprache, mit Attribut textKey) lokal in die Spielersprache setzen;
+-- die Aenderung sieht nur dieser Spieler.
+task.spawn(function()
+	local world = workspace:WaitForChild("FactoryWorld", 30)
+	if world == nil then
+		return
+	end
+	local function localize(instance: Instance)
+		local key = instance:GetAttribute("textKey")
+		if instance:IsA("TextLabel") and type(key) == "string" and texts[key] ~= nil then
+			instance.Text = texts[key]
+		end
+	end
+	for _, descendant in world:GetDescendants() do
+		localize(descendant)
+	end
+	world.DescendantAdded:Connect(localize)
+end)
 local itemAssets: { [string]: string } = {}
 local rarities: { [string]: string } = {}
 for itemTypeId, item in ClientConfig.items do
@@ -176,7 +201,7 @@ end)
 state:onChanged(function(snapshot)
 	local events = if latest ~= nil then FeedbackModel.compare(latest, snapshot, rarities) else {}
 	reconcileItems(snapshot.items, events)
-	hud:render(HudModel.build(snapshot, ClientConfig))
+	hud:render(HudModel.build(snapshot, ClientConfig, texts))
 	hud:renderAlbum(AlbumModel.build(snapshot, ClientConfig.album, texts))
 	if latest ~= nil then
 		feedback:show(displayEvents(events), texts)

@@ -33,6 +33,9 @@
       },
       "TestbedShared": {
         "$path": "games/testbed/shared"
+      },
+      "JunkyardShared": {
+        "$path": "games/junkyard_magnet/shared"
       }
     }
   }

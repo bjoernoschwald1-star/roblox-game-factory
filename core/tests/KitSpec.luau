@@ -1,5 +1,5 @@
 --!strict
--- Tests 105-110, 117-128, 132-134, 142, 149: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
+-- Tests 105-110, 117-128, 132-134, 142, 149, 152: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
 -- Test-Containern. Server-Schnappschuesse mit der Testbed-ServerConfig, Darstellung mit der ClientConfig.
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,6 +14,7 @@ local HudModel = require(FactoryKit.HudModel)
 local HudView = require(FactoryKit.HudView)
 local AlbumModel = require(FactoryKit.AlbumModel)
 local AlbumView = require(FactoryKit.AlbumView)
+local Locale = require(FactoryKit.Locale)
 local FeedbackModel = require(FactoryKit.FeedbackModel)
 local FeedbackView = require(FactoryKit.FeedbackView)
 local OnboardingModel = require(FactoryKit.OnboardingModel)
@@ -1270,6 +1271,12 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				t.expect({ view:albumOpen(), view:windowOpen() }).toEqual({ true, false })
 				t.expect(view:press("albumClose")).toBe(true)
 				t.expect(view:albumOpen()).toBe(false)
+				-- Hoechstens ein Fenster: Schmelze schliesst das Album, Album schliesst die Schmelze.
+				view:press("album")
+				view:press("prestige")
+				t.expect({ view:albumOpen(), view:dialogOpen() }).toEqual({ false, true })
+				view:press("album")
+				t.expect({ view:albumOpen(), view:dialogOpen() }).toEqual({ true, false })
 				view:destroy()
 			end)
 			container:Destroy()
@@ -1287,5 +1294,54 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				FeedbackModel.compare(with(base, { collection = collection }), with(base, { collection = after }))
 			t.expect(events).toEqual({ albumNew = "e2", albumNewCount = 1, albumCompleted = "group_a" })
 		end)
+
+		t.it(
+			"152 Locale: language by player locale, fallback per key warns once, Junkyard de and en have the same keys",
+			function()
+				local sets = { de = { a = "A-de", b = "B-de" }, en = { a = "A-en", c = "C-en" } }
+				t.expect({
+					Locale.languageFor("de-DE", sets, "en"),
+					Locale.languageFor("de-at", sets, "en"),
+					Locale.languageFor("en-US", sets, "en"),
+					Locale.languageFor("fr-FR", sets, "en"),
+					Locale.languageFor(nil, sets, "en"),
+				}).toEqual({ "de", "de", "en", "en", "en" })
+
+				Locale.resetWarnings()
+				local warnings: { string } = {}
+				local function collect(message: string)
+					table.insert(warnings, message)
+				end
+				local german = Locale.texts(sets, "de", "en", collect)
+				t.expect(german).toEqual({ a = "A-de", b = "B-de", c = "C-en" })
+				t.expect(#warnings).toBe(1)
+				Locale.texts(sets, "de", "en", collect)
+				t.expect(#warnings).toBe(1)
+				local english = Locale.texts(sets, "en", "en", collect)
+				t.expect(english).toEqual({ a = "A-en", b = "B-de", c = "C-en" })
+				t.expect(#warnings).toBe(2)
+				t.expect(Locale.missingKeys(sets)).toEqual({ de = { "c" }, en = { "b" } })
+
+				local fakePlayer = { LocaleId = "de-de" }
+				local failing = {}
+				function failing.GetTranslatorForPlayerAsync()
+					error("offline")
+				end
+				t.expect(Locale.localeOf(fakePlayer, failing)).toBe("de-de")
+				local translated = {}
+				function translated.GetTranslatorForPlayerAsync()
+					return { LocaleId = "fr-fr" }
+				end
+				t.expect(Locale.localeOf(fakePlayer, translated)).toBe("fr-fr")
+
+				-- Junkyard: beide Sprachsaetze mit denselben Schluesseln; Standard Englisch.
+				local Junkyard = require(ReplicatedStorage.JunkyardShared.ClientConfig) :: any
+				t.expect(Locale.missingKeys(Junkyard.textsByLanguage)).toEqual({ de = {}, en = {} })
+				t.expect({ Junkyard.defaultLanguage, Junkyard.texts == Junkyard.textsByLanguage.en })
+					.toEqual({ "en", true })
+				t.expect({ Junkyard.textsByLanguage.de.zone_a_name, Junkyard.textsByLanguage.en.zone_a_name })
+					.toEqual({ "Schrottfeld", "Scrap Field" })
+			end
+		)
 	end)
 end

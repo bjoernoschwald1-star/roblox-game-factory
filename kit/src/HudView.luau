@@ -219,12 +219,15 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?, album:
 		elseif action == "unlock" then
 			return currentZone ~= nil and intents:unlockZone(currentZone :: string)
 		elseif action == "upgrades" then
+			-- Es ist immer hoechstens ein Fenster offen (Upgrades, Album, Schmelze).
 			window.Visible = not window.Visible
 			albumView:setOpen(false)
+			dialog.Visible = false
 			return true
 		elseif action == "album" then
 			albumView:setOpen(not albumView:isOpen())
 			window.Visible = false
+			dialog.Visible = false
 			return true
 		elseif action == "albumClose" then
 			albumView:setOpen(false)
@@ -234,6 +237,7 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?, album:
 			return true
 		elseif action == "prestige" then
 			window.Visible = false
+			albumView:setOpen(false)
 			dialog.Visible = true
 			return true
 		elseif action == "prestigeCancel" then
