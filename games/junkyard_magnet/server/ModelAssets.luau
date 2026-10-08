@@ -1,0 +1,36 @@
+--!strict
+-- Asset-IDs der hochgeladenen Blender-Modelle (Open Cloud, Typ Model), uebernommen aus art/assets.lock.json
+-- (tools/assets/upload_models.py). Schluessel = Objektname wie in PropShapes/ItemShapes. Nur Server; der Client
+-- erhaelt fertige Vorlagen ueber ReplicatedStorage.JunkyardModels (siehe MeshModels).
+
+return {
+	item_barrel_chrome = 91360530511425,
+	item_barrel_gold = 120427981349944,
+	item_barrel_neon = 110425295393576,
+	item_barrel_rusty = 136083468708812,
+	item_bolt_chrome = 112571045774517,
+	item_bolt_gold = 134568616446131,
+	item_bolt_neon = 75186186950881,
+	item_bolt_rusty = 111779012343029,
+	item_gear_chrome = 85465475981045,
+	item_gear_gold = 89709023955134,
+	item_gear_neon = 101403000134396,
+	item_gear_rusty = 70652378867641,
+	item_pipe_chrome = 90163572589694,
+	item_pipe_gold = 92734509694621,
+	item_pipe_neon = 137013588849628,
+	item_pipe_rusty = 139839631192376,
+	item_plate_chrome = 139190844700970,
+	item_plate_gold = 137591501051653,
+	item_plate_neon = 88739867836050,
+	item_plate_rusty = 133704919689573,
+	prop_car_wreck = 98363910466384,
+	prop_container = 90245053988179,
+	prop_fence = 71019876477051,
+	prop_ground = 121215996394359,
+	prop_magnet_crane = 134820848054777,
+	prop_scrap_pile = 80409607768433,
+	prop_sell_station = 130779732170517,
+	prop_tire_stack = 107037378011649,
+	tool_magnet = 90067448700352,
+}

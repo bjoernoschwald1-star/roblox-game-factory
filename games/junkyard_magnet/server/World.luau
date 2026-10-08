@@ -8,11 +8,23 @@
 --   <parent>.FactoryWorld.Spawn                  SpawnLocation an der Waage
 -- Kulisse: Grundformen aus server/PropShapes.luau (erzeugt aus den Blender-Skripten, art/scripts/jm_roblox.py) als
 -- verankerte Parts - spielbar ohne Mesh-Upload. Keine Unions, keine Asset-IDs.
+-- Hochgeladene Modelle (World.useModels, Vorlagen aus MeshModels): Dann zeigt ein MeshPart das Objekt; die
+-- Grundformen bleiben unsichtbar als Kollision (CollisionFidelity ist zur Laufzeit nicht setzbar, so bleibt das
+-- Spielgefuehl gleich), Akzente (andere Farbe/Material als das Mesh) bleiben sichtbar. Ohne Kollision entfallen die
+-- unsichtbaren. Fehlt ein Modell, bleibt die sichtbare Bauteil-Version.
 local PropShapes = require(script.Parent:WaitForChild("PropShapes"))
+local MeshModels = require(script.Parent:WaitForChild("MeshModels"))
 
 local World = {}
 
 World.ROOT_NAME = "FactoryWorld"
+
+local models: { [string]: MeshPart } = {}
+
+-- MeshPart-Vorlagen je Objektname (leer = nur Bauteile).
+function World.useModels(templates: { [string]: MeshPart })
+	models = templates
+end
 
 local ZONE_SIZE = Vector3.new(44, 1, 44)
 local ZONE_GAP = 16
@@ -54,7 +66,21 @@ function World.buildProp(name: string, pivot: CFrame, parent: Instance, collide:
 	assert(data ~= nil, "World: unknown prop " .. name)
 	local model = Instance.new("Model")
 	model.Name = name
+	local template = models[name]
+	local accents: { [number]: boolean } = {}
+	if template ~= nil then
+		MeshModels.visual(template, data.parts, pivot, k, k).Parent = model
+		accents = MeshModels.accents(data.parts)
+		for index in accents do
+			local accent = MeshModels.accentPart(data.parts[index], pivot, k)
+			accent.CanCollide = collide ~= false
+			accent.Parent = model
+		end
+	end
 	for index, row in data.parts do
+		if template ~= nil and (collide == false or accents[index]) then
+			continue
+		end
 		local created = Instance.new("Part")
 		created.Name = row[1] .. index
 		created.Shape = SHAPES[row[1]] or Enum.PartType.Block
@@ -80,6 +106,10 @@ function World.buildProp(name: string, pivot: CFrame, parent: Instance, collide:
 		created.CanCollide = collide ~= false
 		created.TopSurface = Enum.SurfaceType.Smooth
 		created.BottomSurface = Enum.SurfaceType.Smooth
+		if template ~= nil then
+			created.Transparency = 1
+			created.CastShadow = false
+		end
 		created.Parent = model
 	end
 	model.Parent = parent

@@ -1,0 +1,149 @@
+{
+  "assets": [
+    {
+      "file": "item_barrel_chrome.fbx",
+      "assetId": "91360530511425",
+      "status": "Approved"
+    },
+    {
+      "file": "item_barrel_gold.fbx",
+      "assetId": "120427981349944",
+      "status": "Approved"
+    },
+    {
+      "file": "item_barrel_neon.fbx",
+      "assetId": "110425295393576",
+      "status": "Approved"
+    },
+    {
+      "file": "item_barrel_rusty.fbx",
+      "assetId": "136083468708812",
+      "status": "Approved"
+    },
+    {
+      "file": "item_bolt_chrome.fbx",
+      "assetId": "112571045774517",
+      "status": "Approved"
+    },
+    {
+      "file": "item_bolt_gold.fbx",
+      "assetId": "134568616446131",
+      "status": "Approved"
+    },
+    {
+      "file": "item_bolt_neon.fbx",
+      "assetId": "75186186950881",
+      "status": "Approved"
+    },
+    {
+      "file": "item_bolt_rusty.fbx",
+      "assetId": "111779012343029",
+      "status": "Approved"
+    },
+    {
+      "file": "item_gear_chrome.fbx",
+      "assetId": "85465475981045",
+      "status": "Approved"
+    },
+    {
+      "file": "item_gear_gold.fbx",
+      "assetId": "89709023955134",
+      "status": "Approved"
+    },
+    {
+      "file": "item_gear_neon.fbx",
+      "assetId": "101403000134396",
+      "status": "Approved"
+    },
+    {
+      "file": "item_gear_rusty.fbx",
+      "assetId": "70652378867641",
+      "status": "Approved"
+    },
+    {
+      "file": "item_pipe_chrome.fbx",
+      "assetId": "90163572589694",
+      "status": "Approved"
+    },
+    {
+      "file": "item_pipe_gold.fbx",
+      "assetId": "92734509694621",
+      "status": "Approved"
+    },
+    {
+      "file": "item_pipe_neon.fbx",
+      "assetId": "137013588849628",
+      "status": "Approved"
+    },
+    {
+      "file": "item_pipe_rusty.fbx",
+      "assetId": "139839631192376",
+      "status": "Approved"
+    },
+    {
+      "file": "item_plate_chrome.fbx",
+      "assetId": "139190844700970",
+      "status": "Approved"
+    },
+    {
+      "file": "item_plate_gold.fbx",
+      "assetId": "137591501051653",
+      "status": "Approved"
+    },
+    {
+      "file": "item_plate_neon.fbx",
+      "assetId": "88739867836050",
+      "status": "Approved"
+    },
+    {
+      "file": "item_plate_rusty.fbx",
+      "assetId": "133704919689573",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_car_wreck.fbx",
+      "assetId": "98363910466384",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_container.fbx",
+      "assetId": "90245053988179",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_fence.fbx",
+      "assetId": "71019876477051",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_ground.fbx",
+      "assetId": "121215996394359",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_magnet_crane.fbx",
+      "assetId": "134820848054777",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_scrap_pile.fbx",
+      "assetId": "80409607768433",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_sell_station.fbx",
+      "assetId": "130779732170517",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_tire_stack.fbx",
+      "assetId": "107037378011649",
+      "status": "Approved"
+    },
+    {
+      "file": "tool_magnet.fbx",
+      "assetId": "90067448700352",
+      "status": "Approved"
+    }
+  ]
+}

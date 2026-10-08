@@ -13,11 +13,27 @@ local ClientConfig = require(ReplicatedStorage:WaitForChild("JunkyardShared"):Wa
 local ServerConfig = require(script.Parent:WaitForChild("ServerConfig"))
 local World = require(script.Parent:WaitForChild("World"))
 local PropShapes = require(script.Parent:WaitForChild("PropShapes"))
+local MeshModels = require(script.Parent:WaitForChild("MeshModels"))
+local ModelAssets = require(script.Parent:WaitForChild("ModelAssets"))
+local ItemShapes = require(ReplicatedStorage:WaitForChild("JunkyardShared"):WaitForChild("ItemShapes"))
+
+-- Wie art/scripts/jm_roblox.py ITEM_SCALE: Items sind groesser als die Blender-Modelle.
+local ITEM_SCALE = 1.4
 
 local _restore, lightingErrors = LightingProfile.apply(ClientConfig.lighting)
 if #lightingErrors > 0 then
 	warn("[Junkyard] lighting profile: " .. table.concat(lightingErrors, "; "))
 end
+-- Hochgeladene Modelle laden (Ersatz: Bauteile); Item-Vorlagen fuer den Client in ReplicatedStorage.
+local templates, failedModels = MeshModels.loadAll(ModelAssets)
+if #failedModels > 0 then
+	warn("[Junkyard] Modelle nicht geladen, Bauteile als Ersatz: " .. table.concat(failedModels, "; "))
+end
+World.useModels(templates)
+local modelFolder = Instance.new("Folder")
+modelFolder.Name = MeshModels.FOLDER_NAME
+MeshModels.itemTemplates(templates, ItemShapes :: any, ITEM_SCALE, modelFolder)
+modelFolder.Parent = ReplicatedStorage
 World.build(ServerConfig)
 
 -- Fluechtiger Speicher nur fuer den lokalen Studio-Place (Schnittstelle core/src/server/Storage/StorageAdapter).

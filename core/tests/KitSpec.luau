@@ -1,5 +1,5 @@
 --!strict
--- Tests 105-110, 117-128, 132-133: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
+-- Tests 105-110, 117-128, 132-134: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
 -- Test-Containern. Server-Schnappschuesse mit der Testbed-ServerConfig, Darstellung mit der ClientConfig.
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1015,5 +1015,51 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				end
 			end
 		)
+
+		t.it("134 ItemView model template: cloned, scaled by rarity, welded, preferred over parts", function()
+			local container = Instance.new("Folder")
+			container.Parent = workspace
+			local template = Instance.new("Model")
+			local ok, err = pcall(function()
+				local body = Instance.new("Part")
+				body.Name = "Body"
+				body.Size = Vector3.new(2, 1, 2)
+				body.CFrame = CFrame.new(0, 0.5, 0)
+				body.Anchored = true
+				body.Parent = template
+				template.WorldPivot = CFrame.new()
+				local row = { "Block", 9, 9, 9, 0, 4.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, "#FF0000", "Neon" }
+				local style = { size = 2, height = 1, model = template, parts = { row } }
+				ItemView.reconcile(container, {
+					{
+						instanceId = "m1",
+						itemTypeId = "shape_item",
+						zoneId = "zone_a",
+						position = Vector3.new(0, 1, 0),
+					},
+				}, { shape_asset = style }, { shape_item = "shape_asset" }, {
+					rarities = { shape_item = "legendary" },
+					rarityStyles = { legendary = { scale = 2, highlight = true } },
+				})
+				local anchor = container:FindFirstChild("m1") :: Part
+				local visual = anchor:FindFirstChild("Visual") :: Model
+				t.expect(visual:FindFirstChild("P1")).toBe(nil)
+				local piece = visual:FindFirstChild("Body") :: Part
+				-- Doppelte Groesse (Seltenheit), Unterkante auf der Item-Position.
+				t.expect((piece.Size - Vector3.new(4, 2, 4)).Magnitude < 0.001).toBe(true)
+				t.expect((piece.Position - Vector3.new(0, 2, 0)).Magnitude < 0.001).toBe(true)
+				local weld = piece:FindFirstChildOfClass("WeldConstraint") :: WeldConstraint
+				t.expect({ piece.Anchored, piece.CanCollide, piece.Massless, weld.Part0 })
+					.toEqual({ false, false, true, anchor })
+				t.expect((anchor:FindFirstChildOfClass("Highlight") :: Highlight).Adornee).toBe(visual)
+				-- Die Vorlage bleibt unveraendert.
+				t.expect({ body.Parent, body.Size, body.Anchored }).toEqual({ template, Vector3.new(2, 1, 2), true })
+			end)
+			container:Destroy()
+			template:Destroy()
+			if not ok then
+				error(err, 0)
+			end
+		end)
 	end)
 end

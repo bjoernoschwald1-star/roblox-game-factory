@@ -12,7 +12,10 @@
 -- { Form, sx, sy, sz, px, py, pz, R00..R22, Farbe (Hex), Material } relativ zum Drehpunkt Mitte unten, dazu
 -- height (Studs). Dann ist der Item-Part ein unsichtbarer, verankerter Anker in der Mitte; die sichtbaren
 -- Teile haengen per WeldConstraint daran (bewegen sich mit animate und Sog) und liegen in einem Model
--- "Visual", das auch das Highlight umfasst. Keine Unions, keine Assets. options.rarities[itemTypeId] = Seltenheit,
+-- "Visual", das auch das Highlight umfasst. Keine Unions, keine Assets. Alternativ assetStyles[asset].model: eine
+-- vom Game gelieferte Vorlage (Model, Drehpunkt Mitte unten = WorldPivot), die geklont, mit der Seltenheit skaliert
+-- und genauso angeschweisst wird (z. B. geladene Meshes); model hat Vorrang vor parts.
+-- options.rarities[itemTypeId] = Seltenheit,
 -- options.rarityStyles = Darstellung je Seltenheit (Game), options.limits = Effekt-Deckel,
 -- options.onRemove(part) -> true uebernimmt einen entfernten Part (z. B. Sog-Animation) statt ihn zu zerstoeren.
 -- animate(container, now) bewegt Items mit Schwebe-/Drehbewegung (Aufruf je Frame aus dem Client).
@@ -41,6 +44,7 @@ export type AssetStyle = {
 	size: number?,
 	parts: { { any } }?,
 	height: number?,
+	model: Model?,
 }
 
 export type RarityStyle = {
@@ -183,9 +187,35 @@ local function countEffects(container: Instance): Limits
 end
 
 -- Baut die sichtbaren Teile einer zusammengesetzten Form an den Anker (Drehpunkt Mitte unten).
-local function buildVisual(anchor: Part, style: AssetStyle, scale: number, bottom: CFrame): Model
-	local visual = Instance.new("Model")
+local function weldVisual(anchor: Part, visual: Model): Model
+	for _, piece in visual:GetDescendants() do
+		if piece:IsA("BasePart") then
+			piece.Anchored = false
+			piece.CanCollide = false
+			piece.CanQuery = false
+			piece.CanTouch = false
+			piece.Massless = true
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = anchor
+			weld.Part1 = piece
+			weld.Parent = piece
+		end
+	end
 	visual.Name = "Visual"
+	visual.Parent = anchor
+	return visual
+end
+
+local function buildVisual(anchor: Part, style: AssetStyle, scale: number, bottom: CFrame): Model
+	if style.model ~= nil then
+		local visual = (style.model :: Model):Clone()
+		if scale ~= 1 then
+			visual:ScaleTo(visual:GetScale() * scale)
+		end
+		visual:PivotTo(bottom)
+		return weldVisual(anchor, visual)
+	end
+	local visual = Instance.new("Model")
 	for index, row in style.parts :: { { any } } do
 		local piece = Instance.new("Part")
 		piece.Name = "P" .. index
@@ -211,19 +241,9 @@ local function buildVisual(anchor: Part, style: AssetStyle, scale: number, botto
 			return (Enum.Material :: any)[row[18]]
 		end)
 		piece.Material = if found and typeof(material) == "EnumItem" then material else Enum.Material.SmoothPlastic
-		piece.Anchored = false
-		piece.CanCollide = false
-		piece.CanQuery = false
-		piece.CanTouch = false
-		piece.Massless = true
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = anchor
-		weld.Part1 = piece
-		weld.Parent = piece
 		piece.Parent = visual
 	end
-	visual.Parent = anchor
-	return visual
+	return weldVisual(anchor, visual)
 end
 
 local function createPart(
@@ -237,7 +257,7 @@ local function createPart(
 ): Part
 	local scale = rarityStyle.scale or 1
 	local size = (style.size or FALLBACK_STYLE.size :: number) * scale
-	local composite = style.parts ~= nil and #(style.parts :: { any }) > 0
+	local composite = style.model ~= nil or (style.parts ~= nil and #(style.parts :: { any }) > 0)
 	local height = if composite then (style.height or size) * scale else size
 	local color = style.color or FALLBACK_STYLE.color :: Color3
 	local accent = rarityStyle.accent or color

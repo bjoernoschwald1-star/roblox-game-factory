@@ -119,9 +119,8 @@ local function displayEvents(events: FeedbackModel.Events): FeedbackModel.Events
 	return shown
 end
 
-state:onChanged(function(snapshot)
-	local events = if latest ~= nil then FeedbackModel.compare(latest, snapshot, rarities) else {}
-	ItemView.reconcile(itemFolder, snapshot.items, ClientConfig.assetStyles, itemAssets, {
+local function reconcileItems(items: { ItemView.Item }, events: FeedbackModel.Events)
+	ItemView.reconcile(itemFolder, items, ClientConfig.assetStyles, itemAssets, {
 		rarities = rarities,
 		rarityStyles = ClientConfig.rarityStyles,
 		-- Eingesammelte Items fliegen zum Charakter statt zu verschwinden.
@@ -134,6 +133,32 @@ state:onChanged(function(snapshot)
 			return collectFx:pull(part, rootPart(), color)
 		end,
 	})
+end
+
+-- Geladene Modelle (Server: ReplicatedStorage.JunkyardModels, je Item-Asset ein Model) ersetzen die Bauteile;
+-- vorhandene Items werden einmal neu aufgebaut. Fehlt eine Vorlage, bleibt die Bauteil-Version.
+task.spawn(function()
+	local models = ReplicatedStorage:WaitForChild("JunkyardModels", 60)
+	if models == nil then
+		return
+	end
+	local used = 0
+	for asset, style in ClientConfig.assetStyles do
+		local model = models:FindFirstChild(asset)
+		if model ~= nil and model:IsA("Model") then
+			(style :: any).model = model
+			used += 1
+		end
+	end
+	if used > 0 and latest ~= nil then
+		itemFolder:ClearAllChildren()
+		reconcileItems(latest.items, {})
+	end
+end)
+
+state:onChanged(function(snapshot)
+	local events = if latest ~= nil then FeedbackModel.compare(latest, snapshot, rarities) else {}
+	reconcileItems(snapshot.items, events)
 	hud:render(HudModel.build(snapshot, ClientConfig))
 	if latest ~= nil then
 		feedback:show(displayEvents(events), texts)
