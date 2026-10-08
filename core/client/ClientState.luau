@@ -29,6 +29,22 @@ export type PrestigeState = {
 	available: boolean,
 }
 
+export type CollectionGroupState = {
+	order: number,
+	entries: { string },
+	found: number,
+	done: boolean,
+	rewardCoins: number,
+	rewardEffects: { [string]: { add: number?, mul: number? } },
+}
+
+export type CollectionState = {
+	found: { [string]: boolean },
+	foundCount: number,
+	total: number,
+	groups: { [string]: CollectionGroupState },
+}
+
 export type Snapshot = {
 	seq: number,
 	coins: number,
@@ -41,6 +57,7 @@ export type Snapshot = {
 	zones: { [string]: ZoneState },
 	items: { ItemState },
 	prestige: PrestigeState?,
+	collection: CollectionState?,
 }
 
 export type ClientState = {
@@ -114,6 +131,23 @@ local function isValid(snapshot: any): boolean
 		end
 		for _, key in { "level", "multiplier", "nextMultiplier", "coinsRequired" } do
 			if not isFinite(prestige[key]) then
+				return false
+			end
+		end
+	end
+	local collection = snapshot.collection
+	if collection ~= nil then
+		if type(collection) ~= "table" or type(collection.found) ~= "table" or type(collection.groups) ~= "table" then
+			return false
+		end
+		if not isFinite(collection.foundCount) or not isFinite(collection.total) then
+			return false
+		end
+		for _, group in collection.groups do
+			if type(group) ~= "table" or type(group.entries) ~= "table" or type(group.done) ~= "boolean" then
+				return false
+			end
+			if not isFinite(group.order) or not isFinite(group.found) or not isFinite(group.rewardCoins) then
 				return false
 			end
 		end

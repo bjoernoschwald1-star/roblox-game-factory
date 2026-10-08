@@ -24,6 +24,9 @@
 --     Touch-Flaechen rechts neben dem Thumbstick bzw. (Handy hoch) ueber ihm.
 --   Rand-Knopf "prestige" (nur sichtbar, wenn Prestige moeglich ist): direkt ueber dem hoeheren der beiden
 --     Rand-Knoepfe, gleiche Breite.
+--   Rand-Knopf "album" (Sammelalbum): rechts neben "upgrades", wenn bis zu den Aktionen Platz ist, sonst ueber
+--     dem hoeheren Rand-Knopf; "prestige" steht ueber dem hoechsten Rand-Knopf.
+--   Album-Fenster ("albumWindow"): wie das Upgrade-Fenster mittig ohne Ueberdeckung, aber groesser (ALBUM_SIZES).
 --   Upgrade-Fenster ("window"): klein und mittig, nur auf Knopfdruck sichtbar; es ueberdeckt keine Anzeigen und
 --     Knoepfe (windowRect), darf als modales Fenster aber Freihaltezonen ueberdecken.
 -- Doku: https://create.roblox.com/docs/ui/position-and-size#reserved-zones
@@ -59,7 +62,7 @@ local DEFAULT_AREAS: { [string]: Vector2 } = {
 local HudLayout = {}
 
 HudLayout.MIN_TOUCH_SIZE = MIN_TOUCH_SIZE
-HudLayout.ELEMENTS = { "coins", "inventory", "hint", "unlock", "upgrades", "prestige", "collect", "sell" }
+HudLayout.ELEMENTS = { "coins", "inventory", "hint", "unlock", "upgrades", "album", "prestige", "collect", "sell" }
 
 function HudLayout.presetFor(area: Vector2): string
 	if math.min(area.X, area.Y) <= SMALL_EDGE then
@@ -102,19 +105,36 @@ local WINDOW_SIZES = {
 	Vector2.new(220, 170),
 }
 
-function HudLayout.windowRect(area: Vector2, rects: { [string]: Rect }): Rect
+-- Album-Fenster: Raster aus bis zu sechs Reihen, daher groessere Stufen; sonst gleiche Regeln wie windowRect.
+local ALBUM_SIZES = {
+	Vector2.new(470, 350),
+	Vector2.new(430, 320),
+	Vector2.new(400, 300),
+	Vector2.new(370, 280),
+	Vector2.new(340, 260),
+	Vector2.new(320, 240),
+	Vector2.new(300, 220),
+	Vector2.new(280, 200),
+	Vector2.new(260, 190),
+	Vector2.new(240, 180),
+	Vector2.new(220, 170),
+}
+
+function HudLayout.windowRect(area: Vector2, rects: { [string]: Rect }, sizes: { Vector2 }?): Rect
 	local others: { Rect } = {}
-	for _, name in { "coins", "inventory", "hint", "unlock", "upgrades", "prestige", "collect", "sell" } do
+	for _, name in { "coins", "inventory", "hint", "unlock", "upgrades", "album", "prestige", "collect", "sell" } do
 		if rects[name] ~= nil then
 			table.insert(others, rects[name])
 		end
 	end
+	-- 1 px Abstand: specs rechnen ueber Skalenwerte zurueck, Rundung darf keine Beruehrung ergeben.
 	local function free(candidate: Rect): boolean
+		local padded = { x = candidate.x - 1, y = candidate.y - 1, w = candidate.w + 2, h = candidate.h + 2 }
 		if candidate.y < MARGIN or candidate.y + candidate.h > area.Y - MARGIN then
 			return false
 		end
 		for _, other in others do
-			if HudLayout.overlaps(candidate, other) then
+			if HudLayout.overlaps(padded, other) then
 				return false
 			end
 		end
@@ -126,7 +146,7 @@ function HudLayout.windowRect(area: Vector2, rects: { [string]: Rect }): Rect
 		table.insert(offsets, step)
 	end
 	local last: Rect? = nil
-	for _, size in WINDOW_SIZES do
+	for _, size in sizes or WINDOW_SIZES do
 		local w = math.min(size.X, area.X - 2 * MARGIN)
 		local h = math.min(size.Y, area.Y - 2 * MARGIN)
 		for _, dy in offsets do
@@ -207,9 +227,19 @@ function HudLayout.rects(area: Vector2): { [string]: Rect }
 		rects.unlock = { x = MARGIN, y = bottom - buttonH, w = 150, h = buttonH }
 		rects.upgrades = { x = 2 * MARGIN + 150, y = bottom - buttonH, w = 120, h = buttonH }
 	end
-	local upper = if rects.unlock.y <= rects.upgrades.y then rects.unlock else rects.upgrades
-	rects.prestige = { x = upper.x, y = upper.y - buttonH - MARGIN, w = upper.w, h = buttonH }
+	-- Album: in der Reihe rechts neben Upgrades, wenn bis zu den Aktionen Platz ist, sonst ueber Upgrades; im
+	-- Stapel (Handy hoch) rechts neben Upgrades. Prestige steht immer ueber Freischalten.
+	local up = rects.upgrades
+	local unlock = rects.unlock
+	local beside = { x = up.x + up.w + MARGIN, y = up.y, w = up.w, h = buttonH }
+	if unlock.y ~= up.y or beside.x + beside.w <= rects.collect.x - MARGIN then
+		rects.album = beside
+	else
+		rects.album = { x = up.x, y = up.y - buttonH - MARGIN, w = up.w, h = buttonH }
+	end
+	rects.prestige = { x = unlock.x, y = unlock.y - buttonH - MARGIN, w = unlock.w, h = buttonH }
 	rects.window = HudLayout.windowRect(area, rects)
+	rects.albumWindow = HudLayout.windowRect(area, rects, ALBUM_SIZES)
 	return rects
 end
 
@@ -272,11 +302,13 @@ function HudLayout.check(viewport: Vector2, topInset: number, upgradeCount: numb
 	zones.center = { x = area.X / 2 - 50, y = viewport.Y / 2 - topInset - 40, w = 100, h = 120 }
 	local names = sortedKeys(rects)
 	local problems: { string } = {}
-	-- Das modale Upgrade-Fenster darf keine Anzeigen und Knoepfe ueberdecken.
-	local window = HudLayout.resolve(specs.window, area)
-	for _, name in names do
-		if HudLayout.overlaps(window, rects[name]) then
-			table.insert(problems, "window/" .. name)
+	-- Die modalen Fenster (Upgrades, Album) duerfen keine Anzeigen und Knoepfe ueberdecken.
+	for _, windowName in { "window", "albumWindow" } do
+		local window = HudLayout.resolve(specs[windowName], area)
+		for _, name in names do
+			if HudLayout.overlaps(window, rects[name]) then
+				table.insert(problems, windowName .. "/" .. name)
+			end
 		end
 	end
 	for i, a in names do

@@ -21,6 +21,7 @@ local ItemView = require(FactoryKit:WaitForChild("ItemView"))
 local CollectFx = require(FactoryKit:WaitForChild("CollectFx"))
 local RangeView = require(FactoryKit:WaitForChild("RangeView"))
 local HudModel = require(FactoryKit:WaitForChild("HudModel"))
+local AlbumModel = require(FactoryKit:WaitForChild("AlbumModel"))
 local HudView = require(FactoryKit:WaitForChild("HudView"))
 local FeedbackModel = require(FactoryKit:WaitForChild("FeedbackModel"))
 local FeedbackView = require(FactoryKit:WaitForChild("FeedbackView"))
@@ -64,7 +65,15 @@ local function rootPart(): BasePart?
 	return if root ~= nil and root:IsA("BasePart") then root else nil
 end
 
-local hud = HudView.new(playerGui, intents, ClientConfig.uiTokens)
+-- Album-Vorschau: die geladenen Item-Modelle (ReplicatedStorage.JunkyardModels, Asset-Schluessel = Album-Eintrag).
+local hud = HudView.new(playerGui, intents, ClientConfig.uiTokens, {
+	rarityColors = rarityColors,
+	preview = function(entryId: string): Model?
+		local models = ReplicatedStorage:FindFirstChild("JunkyardModels")
+		local model = if models ~= nil then models:FindFirstChild(entryId) else nil
+		return if model ~= nil and model:IsA("Model") then model else nil
+	end,
+})
 local feedback = FeedbackView.new(playerGui, ClientConfig.effects, nil, {
 	adornee = rootPart,
 	camera = workspace.CurrentCamera,
@@ -116,6 +125,14 @@ local function displayEvents(events: FeedbackModel.Events): FeedbackModel.Events
 		local item = ClientConfig.items[shown.found]
 		shown.found = if item then texts[item.nameKey] or shown.found else shown.found
 	end
+	if shown.albumNew ~= nil then
+		local entry = ClientConfig.album.entries[shown.albumNew]
+		shown.albumNew = if entry then texts[entry.nameKey] or shown.albumNew else shown.albumNew
+	end
+	if shown.albumCompleted ~= nil then
+		local nameKey = ClientConfig.album.groups[shown.albumCompleted]
+		shown.albumCompleted = if nameKey then texts[nameKey] or shown.albumCompleted else shown.albumCompleted
+	end
 	return shown
 end
 
@@ -160,6 +177,7 @@ state:onChanged(function(snapshot)
 	local events = if latest ~= nil then FeedbackModel.compare(latest, snapshot, rarities) else {}
 	reconcileItems(snapshot.items, events)
 	hud:render(HudModel.build(snapshot, ClientConfig))
+	hud:renderAlbum(AlbumModel.build(snapshot, ClientConfig.album, texts))
 	if latest ~= nil then
 		feedback:show(displayEvents(events), texts)
 	end

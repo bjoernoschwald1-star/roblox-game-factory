@@ -17,6 +17,9 @@
 --   zusaetzlich alle Upgrade-Stufen gekauft sind; "prestige" (nur mit config.prestige) weiter, bis nach dem
 --   Ausgeben mindestens prestige.coinsRequired Coins da sind (erste Prestige-Moeglichkeit). Gesammelt wird nach
 --   der letzten Zone weiter in der hoechsten freien Zone.
+-- - Sammelalbum (config.collection, optimistisch): Eine Gruppe gilt als vollstaendig, sobald fuer jeden Eintrag
+--   die Zone eines seiner Itemtypen frei ist; ihre Coins kommen sofort, ihre effects wirken ab dann. Echte Spieler
+--   brauchen fuer seltene Teile laenger; der Simulator liefert so die fruehestmoeglichen Zeiten.
 -- - Der Lauf endet ausserdem, wenn maxMinutes erreicht ist oder kein Fortschritt moeglich ist.
 local Schema = require(script.Parent.Schema)
 local Validator = require(script.Parent.Validator)
@@ -112,8 +115,26 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 	end
 	table.sort(dimensions)
 
+	local albumDone: { [string]: boolean } = {}
+	local albumGroups: { string } = {}
+	if config.collection ~= nil then
+		for groupId in config.collection.groups do
+			table.insert(albumGroups, groupId)
+		end
+		table.sort(albumGroups)
+	end
+
 	local function stat(name: string): number
 		local add, mul = 0, 1
+		for _, groupId in albumGroups do
+			if albumDone[groupId] then
+				local effect = ((config.collection :: any).groups[groupId].reward.effects or {})[name]
+				if effect ~= nil then
+					add += effect.add or 0
+					mul *= effect.mul or 1
+				end
+			end
+		end
 		for _, dimension in dimensions do
 			local upgrade = config.upgrades[dimension]
 			local entry = upgrade.levels[levels[dimension]]
@@ -135,6 +156,34 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 	local firstPrestige: number? = nil
 	local timeline: { TimelineEntry } = { { minute = 0, event = "zone_unlock " .. zoneOrder[1] } }
 
+	-- Album-Gruppen, deren Eintraege alle in freien Zonen liegen, gelten als vollstaendig (optimistisch).
+	local function rewardAlbum()
+		local open: { [string]: boolean } = {}
+		for rank = 1, unlocked do
+			open[zoneOrder[rank]] = true
+		end
+		for _, groupId in albumGroups do
+			if not albumDone[groupId] then
+				local group = (config.collection :: any).groups[groupId]
+				local reachable = true
+				for _, entry in group.entries do
+					local any = false
+					for _, itemTypeId in entry.itemTypes do
+						if open[config.items[itemTypeId].zoneId] then
+							any = true
+						end
+					end
+					reachable = reachable and any
+				end
+				if reachable then
+					albumDone[groupId] = true
+					coins += group.reward.coins or 0
+					table.insert(timeline, { minute = minutes(now), event = "album " .. groupId })
+				end
+			end
+		end
+	end
+
 	-- Nach jedem Verkauf: erst Zone, sonst guenstigstes Upgrade, solange etwas moeglich ist.
 	local function spend()
 		while true do
@@ -153,6 +202,7 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 					unlocked += 1
 					zoneTimes[unlocked] = minutes(now)
 					table.insert(timeline, { minute = minutes(now), event = "zone_unlock " .. nextZoneId })
+					rewardAlbum()
 					continue
 				end
 			end
@@ -208,6 +258,7 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 		return firstPrestige ~= nil
 	end
 
+	rewardAlbum()
 	spend()
 	local limitSeconds = options.maxMinutes * 60
 	while not reached() do

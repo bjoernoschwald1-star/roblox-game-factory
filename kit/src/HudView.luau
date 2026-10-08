@@ -5,6 +5,9 @@
 --   Rand-Knoepfe "unlock" (zeigt die naechste Zonen-Bedingung) und "upgrades" (oeffnet das Upgrade-Fenster).
 --   Upgrade-Fenster "UpgradeWindow": mittig, nur auf Knopfdruck; enthaelt je Upgrade einen Knopf "upgrade:<dim>"
 --   und "upgradesClose". Aktionen "upgrades" (umschalten) und "upgradesClose" senden keine Absicht.
+--   Sammelalbum (optional, vierter Parameter album = AlbumView.Options): Rand-Knopf "album" (nur sichtbar, wenn der
+--   Schnappschuss ein Album hat) oeffnet das AlbumWindow, "albumClose" schliesst; renderAlbum(AlbumModel) fuellt es.
+--   Upgrade- und Album-Fenster schliessen sich gegenseitig. Beides sendet keine Absicht.
 --   Prestige: Rand-Knopf "prestige" (nur sichtbar, wenn moeglich) oeffnet das Bestaetigungsfenster
 --   "PrestigeDialog" (Platz des Upgrade-Fensters) mit Verlust und Gewinn; erst "prestigeConfirm" sendet die
 --   Absicht, "prestigeCancel" schliesst ohne Absicht.
@@ -18,6 +21,8 @@
 --       https://create.roblox.com/docs/reference/engine/classes/ScreenGui#ScreenInsets
 --       https://create.roblox.com/docs/reference/engine/classes/UITextSizeConstraint
 --       https://create.roblox.com/docs/reference/engine/classes/UIListLayout
+local AlbumModel = require(script.Parent.AlbumModel)
+local AlbumView = require(script.Parent.AlbumView)
 local HudLayout = require(script.Parent.HudLayout)
 local HudModel = require(script.Parent.HudModel)
 
@@ -45,6 +50,8 @@ export type Intents = {
 export type HudView = {
 	gui: ScreenGui,
 	render: (self: HudView, model: HudModel.Model) -> (),
+	renderAlbum: (self: HudView, model: AlbumModel.Model) -> (),
+	albumOpen: (self: HudView) -> boolean,
 	press: (self: HudView, action: string) -> boolean,
 	buttons: (self: HudView) -> { [string]: TextButton },
 	element: (self: HudView, name: string) -> GuiObject?,
@@ -58,7 +65,7 @@ local HudView = {}
 
 HudView.MIN_TOUCH_SIZE = HudLayout.MIN_TOUCH_SIZE
 
-function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudView
+function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?, album: AlbumView.Options?): HudView
 	local style: Tokens = tokens or {}
 	local textSize = style.textSize or 22
 	local font = style.font or Enum.Font.GothamBold
@@ -163,6 +170,15 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 	decorate(title)
 	title.Parent = window
 
+	-- Sammelalbum (modal, eigener Platz albumWindow)
+	local albumOptions: AlbumView.Options = table.clone(album or {})
+	albumOptions.panel = albumOptions.panel or panel
+	albumOptions.text = albumOptions.text or textColor
+	albumOptions.accent = albumOptions.accent or highlight
+	albumOptions.font = albumOptions.font or font
+	local albumView = AlbumView.new(gui, albumOptions)
+	elements.albumWindow = albumView.frame
+
 	-- Bestaetigungsfenster fuer Prestige (modal, Platz des Upgrade-Fensters)
 	local dialog = Instance.new("Frame")
 	dialog.Name = "PrestigeDialog"
@@ -204,6 +220,14 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 			return currentZone ~= nil and intents:unlockZone(currentZone :: string)
 		elseif action == "upgrades" then
 			window.Visible = not window.Visible
+			albumView:setOpen(false)
+			return true
+		elseif action == "album" then
+			albumView:setOpen(not albumView:isOpen())
+			window.Visible = false
+			return true
+		elseif action == "albumClose" then
+			albumView:setOpen(false)
 			return true
 		elseif action == "upgradesClose" then
 			window.Visible = false
@@ -244,6 +268,11 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 	closeButton.Size = UDim2.fromScale(0.11, 0.13)
 	closeButton.BackgroundColor3 = disabled
 	connect(closeButton, "upgradesClose")
+	local albumButton = button("album", gui)
+	albumButton.Visible = false
+	connect(albumButton, "album")
+	buttonsById.albumClose = albumView.closeButton
+	connect(albumView.closeButton, "albumClose")
 	local prestigeButton = button("prestige", gui)
 	prestigeButton.Visible = false
 	connect(prestigeButton, "prestige")
@@ -274,6 +303,7 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 			inventory = inventory,
 			unlock = unlockButton,
 			upgrades = upgradesButton,
+			album = albumButton,
 			prestige = prestigeButton,
 			collect = collectButton,
 			sell = sellButton,
@@ -282,6 +312,10 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 		local windowSpec = specs.window
 		if windowSpec ~= nil then
 			HudLayout.apply(dialog, windowSpec)
+		end
+		local albumSpec = specs.albumWindow
+		if albumSpec ~= nil then
+			albumView:applySpec(albumSpec)
 		end
 		for name, target in targets do
 			local s = specs[name]
@@ -374,6 +408,20 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 
 		dialogOpen = function(_self): boolean
 			return dialog.Visible
+		end,
+
+		renderAlbum = function(_self, model: AlbumModel.Model)
+			albumButton.Visible = model.visible
+			albumButton.Text = model.buttonText
+			if not model.visible then
+				albumView:setOpen(false)
+				return
+			end
+			albumView:render(model)
+		end,
+
+		albumOpen = function(_self): boolean
+			return albumView:isOpen()
 		end,
 
 		applyLayout = function(_self, area: Vector2): string

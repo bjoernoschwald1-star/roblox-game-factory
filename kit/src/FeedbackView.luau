@@ -46,6 +46,8 @@ local DEFAULT_EFFECTS: { [string]: Effect } = {
 	full = { textKey = "feedback_full", color = Color3.fromRGB(255, 120, 120) },
 	found = { textKey = "feedback_found", color = Color3.fromRGB(200, 110, 255) },
 	prestiged = { textKey = "feedback_prestiged", color = Color3.fromRGB(255, 150, 40) },
+	albumNew = { textKey = "feedback_album_new", color = Color3.fromRGB(120, 230, 255) },
+	albumCompleted = { textKey = "feedback_album_complete", color = Color3.fromRGB(255, 210, 60) },
 }
 local ORDER = { "collected", "earned", "upgraded", "unlocked", "full" }
 local POPUP_SCALE = { 1, 1.2, 1.45, 1.8 } -- nach FeedbackModel.rank
@@ -306,6 +308,27 @@ function FeedbackView.new(
 				local multiplier = Text.decimal(events.prestigeMultiplier or 1, texts)
 				celebrate(Text.lookup(texts, effect.textKey, { multiplier = multiplier }), color, 2, "prestiged")
 				upgradeBurst(color)
+				return lines
+			end
+			-- Album: Reihe komplett vor neuem Eintrag vor seltenem Fund (es gibt nur ein Banner gleichzeitig).
+			-- albumNew/albumCompleted sind hier bereits Anzeigenamen.
+			if events.albumCompleted ~= nil then
+				local effect = effectFor(effects, "albumCompleted")
+				celebrate(
+					Text.lookup(texts, effect.textKey, { group = events.albumCompleted }),
+					effect.color or Color3.fromRGB(255, 210, 60),
+					2,
+					"albumCompleted"
+				)
+				return lines
+			elseif events.albumNew ~= nil then
+				local effect = effectFor(effects, "albumNew")
+				celebrate(
+					Text.lookup(texts, effect.textKey, { item = events.albumNew }),
+					effect.color or Color3.fromRGB(120, 230, 255),
+					1,
+					if FeedbackModel.isWow(events.foundRarity) then "found" else "albumNew"
+				)
 				return lines
 			end
 			local text = FeedbackView.bannerText(events, texts, effects)

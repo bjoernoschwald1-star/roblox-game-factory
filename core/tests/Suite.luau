@@ -1,7 +1,7 @@
 --!strict
 -- Suite "core": alle Tests der Core Engine (ProfileStore/PlayerSession inkl. echtem DataStore,
 -- Economy, Inventory, Collecting, Modifiers, Upgrades, Zones, Selling, der ganze Loop, Log, Monetization,
--- Analytics, RemoteGateway und Prestige).
+-- Analytics, RemoteGateway, Prestige und Sammelalbum).
 local Runner = require(game:GetService("ServerScriptService").FactoryCore.testing.Runner)
 
 local Suite: { Runner.Spec } = {
@@ -23,6 +23,7 @@ local Suite: { Runner.Spec } = {
 	require(script.Parent.GameServerSpec) :: Runner.Spec,
 	require(script.Parent.SimulatorSpec) :: Runner.Spec,
 	require(script.Parent.PrestigeSpec) :: Runner.Spec,
+	require(script.Parent.CollectionSpec) :: Runner.Spec,
 	require(script.Parent.EngineAdaptersSpec) :: Runner.Spec,
 	require(script.Parent.ServerRuntimeSpec) :: Runner.Spec,
 	require(script.Parent.StateSyncSpec) :: Runner.Spec,

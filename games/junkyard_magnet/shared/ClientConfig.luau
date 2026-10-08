@@ -55,6 +55,7 @@ local ZONE_ITEMS = {
 		{ "pipe", "chrome" },
 		{ "plate", "gold" },
 		{ "gear", "neon" },
+		{ "plate", "chrome" },
 	},
 	zone_c = {
 		{ "gear", "rusty" },
@@ -62,6 +63,8 @@ local ZONE_ITEMS = {
 		{ "barrel", "chrome" },
 		{ "bolt", "gold" },
 		{ "pipe", "neon" },
+		{ "pipe", "gold" },
+		{ "barrel", "gold" },
 	},
 	-- Hafen: wertvollere bekannte Formen plus der Anker in allen vier Seltenheiten.
 	zone_d = {
@@ -71,8 +74,16 @@ local ZONE_ITEMS = {
 		{ "anchor", "chrome" },
 		{ "anchor", "gold" },
 		{ "anchor", "neon" },
+		{ "plate", "neon" },
+		{ "bolt", "neon" },
 	},
 }
+
+-- Sammelalbum: je Form eine Reihe mit den vier Seltenheiten (24 Eintraege); Eintrag = Asset-Schluessel, umfasst alle
+-- Itemtypen dieser Form und Seltenheit (z. B. rostige Fass in Autofriedhof und Hafen). Jede Kombination kommt in
+-- mindestens einer Zone vor. Belohnungen stehen in server/ServerConfig.luau.
+local ALBUM_SHAPES = { "plate", "pipe", "gear", "bolt", "barrel", "anchor" }
+local ALBUM_VARIANTS = { "rusty", "chrome", "gold", "neon" }
 
 local items = {}
 local assetStyles = {}
@@ -98,6 +109,29 @@ for zoneId, list in ZONE_ITEMS do
 	end
 end
 
+-- Album-Anzeige (kit AlbumModel) und Gruppen-Aufbau fuer die Server-Config: groups[groupId] = { order, nameKey,
+-- entries = { { id, itemTypes } } }.
+local albumDisplay = { groups = {}, entries = {} }
+local albumGroups = {}
+for order, shape in ALBUM_SHAPES do
+	local groupId = "album_" .. shape
+	local entries = {}
+	for _, variant in ALBUM_VARIANTS do
+		local asset = "item_" .. shape .. "_" .. variant
+		local itemTypes = {}
+		for itemId, item in items do
+			if item.asset == asset then
+				table.insert(itemTypes, itemId)
+			end
+		end
+		table.sort(itemTypes)
+		table.insert(entries, { id = asset, itemTypes = itemTypes })
+		albumDisplay.entries[asset] = { nameKey = asset .. "_name", rarity = RARITY_OF[variant] }
+	end
+	albumGroups[groupId] = { order = order, nameKey = groupId .. "_name", entries = entries }
+	albumDisplay.groups[groupId] = groupId .. "_name"
+end
+
 local zones = {
 	zone_a = { order = 1, nameKey = "zone_a_name", condition = { type = "always" } },
 	zone_b = { order = 2, nameKey = "zone_b_name", condition = { type = "purchase", cost = 150 } },
@@ -106,7 +140,7 @@ local zones = {
 		nameKey = "zone_c_name",
 		condition = { type = "upgradeLevel", dimension = "capacity", level = 3 },
 	},
-	zone_d = { order = 4, nameKey = "zone_d_name", condition = { type = "purchase", cost = 28000 } },
+	zone_d = { order = 4, nameKey = "zone_d_name", condition = { type = "purchase", cost = 39000 } },
 }
 
 local upgrades = {
@@ -158,6 +192,21 @@ local texts = {
 	prestige_gain = "Du bekommst dauerhaft ×{multiplier} auf jeden Verkauf.",
 	prestige_confirm = "Einschmelzen",
 	prestige_cancel = "Abbrechen",
+	hud_album = "Album",
+	album_title = "Sammelalbum",
+	album_progress = "{found} / {total}",
+	album_row_progress = "{found}/{total}",
+	album_reward_coins = "+{coins} Münzen",
+	album_reward_bonus = "+{percent} % Verkauf",
+	album_reward_done = "✓",
+	album_plate_name = "Blechplatten",
+	album_pipe_name = "Rohre",
+	album_gear_name = "Zahnräder",
+	album_bolt_name = "Schrauben",
+	album_barrel_name = "Fässer",
+	album_anchor_name = "Anker",
+	feedback_album_new = "Neu im Album! {item}",
+	feedback_album_complete = "Reihe komplett: {group}!",
 	feedback_prestiged = "Eingeschmolzen! Verkauf ×{multiplier}",
 	decimal_separator = ",",
 	hint_full = "Ladefläche voll! Folge dem Strahl zur Waage.",
@@ -255,6 +304,8 @@ local effects = {
 	full = { textKey = "feedback_full", color = PALETTE.magnet_red },
 	found = { textKey = "feedback_found", color = PALETTE.neon_pink },
 	prestiged = { textKey = "feedback_prestiged", color = PALETTE.rust_orange },
+	albumNew = { textKey = "feedback_album_new", color = PALETTE.neon_cyan },
+	albumCompleted = { textKey = "feedback_album_complete", color = PALETTE.gold },
 	-- Nur kostenlose Sounds des Erstellers "Roblox" aus dem Creator Store (im Spieltest geladen, Laenge in Sekunden).
 	sounds = {
 		collected = "rbxassetid://12221990", -- electronicpingshort.wav (Roblox), 0,46 s: Einsammeln
@@ -263,6 +314,8 @@ local effects = {
 		unlocked = "rbxassetid://12222253", -- victory.wav (Roblox), 1,21 s: Zone freigeschaltet
 		found = "rbxassetid://15675043410", -- Roblox_UI_Tonal_Stinger (Roblox), 1,47 s: seltener Fund
 		prestiged = "rbxassetid://15675024286", -- Roblox_UI_Whoosh_01 (Roblox): Schmelze
+		albumNew = "rbxassetid://15675059323", -- Roblox_UI_Bright_Click (Roblox), 0,37 s: neu im Album
+		albumCompleted = "rbxassetid://12222253", -- victory.wav (Roblox), 1,21 s: Album-Reihe komplett
 	},
 }
 
@@ -284,6 +337,8 @@ return {
 	items = items,
 	zones = zones,
 	upgrades = upgrades,
+	album = albumDisplay,
+	albumGroups = albumGroups,
 	texts = texts,
 	assetStyles = assetStyles,
 	rarityStyles = rarityStyles,

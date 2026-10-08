@@ -30,8 +30,8 @@ local UPGRADE_VALUES: { [string]: { stat: string, levels: { any } } } = {
 		levels = {
 			{ cost = 60, add = 3 },
 			{ cost = 550, add = 6 },
-			{ cost = 2300, add = 10 },
-			{ cost = 9200, add = 15 },
+			{ cost = 3200, add = 10 },
+			{ cost = 12900, add = 15 },
 		},
 	},
 	capacity = {
@@ -39,24 +39,28 @@ local UPGRADE_VALUES: { [string]: { stat: string, levels: { any } } } = {
 		levels = {
 			{ cost = 100, add = 8 },
 			{ cost = 1000, add = 18 },
-			{ cost = 3500, add = 30 },
-			{ cost = 11500, add = 50 },
-			{ cost = 34500, add = 80 },
+			{ cost = 4900, add = 30 },
+			{ cost = 16100, add = 50 },
+			{ cost = 48300, add = 80 },
 		},
 	},
 	sell_bonus = {
 		stat = "sellFactor",
 		levels = {
 			{ cost = 400, mul = 1.2 },
-			{ cost = 5800, mul = 1.45 },
-			{ cost = 20700, mul = 1.75 },
-			{ cost = 57500, mul = 2.1 },
+			{ cost = 8100, mul = 1.45 },
+			{ cost = 29000, mul = 1.75 },
+			{ cost = 80500, mul = 2.1 },
 		},
 	},
 }
 
+-- Sammelalbum: je vollstaendiger Reihe einmalig Muenzen und dauerhaft +3 % Verkauf (6 Reihen zusammen etwa
+-- x1,19; bleibt nach der Schmelze). Spuerbar, aber klein gegen den Haendlerbonus (bis x2,1) und die Schmelze (x1,5).
+local ALBUM_REWARD = { coins = 3000, effects = { sellFactor = { mul = 1.03 } } }
+
 -- Schmelze (Prestige im Kern): Schwelle und dauerhafter Bonus je Stufe.
-local PRESTIGE = { coinsRequired = 140000, sellBonusPerLevel = 0.5 }
+local PRESTIGE = { coinsRequired = 200000, sellBonusPerLevel = 0.5 }
 
 local items = {}
 for itemId, display in ClientConfig.items do
@@ -80,6 +84,16 @@ for zoneId, display in ClientConfig.zones do
 		condition = table.clone(display.condition),
 		density = values.density,
 		respawnSeconds = values.respawnSeconds,
+	}
+end
+
+local albumGroups = {}
+for groupId, group in ClientConfig.albumGroups do
+	albumGroups[groupId] = {
+		order = group.order,
+		nameKey = group.nameKey,
+		entries = group.entries,
+		reward = ALBUM_REWARD,
 	}
 end
 
@@ -119,4 +133,5 @@ return {
 	texts = ClientConfig.texts,
 	sim = { tripSeconds = 8, sellSeconds = 4 },
 	prestige = PRESTIGE,
+	collection = { groups = albumGroups },
 }

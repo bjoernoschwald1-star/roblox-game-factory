@@ -460,6 +460,82 @@ function Validator.validate(config: any): Result
 			end
 		end
 
+		-- collection (optional)
+		if config.collection ~= nil then
+			local collection = tbl("collection", config.collection)
+			local groups = if collection then tbl("collection.groups", collection.groups) else nil
+			if groups then
+				local usedEntries: { [string]: boolean } = {}
+				local usedItems: { [string]: boolean } = {}
+				local usedOrders: { [number]: boolean } = {}
+				for _, groupId in sortedKeys(groups) do
+					local path = join("collection.groups", groupId)
+					local group = groups[groupId]
+					if idKey("collection.groups", groupId) and tbl(path, group) then
+						if num(path .. ".order", group.order, { integer = true, positive = true }) then
+							if usedOrders[group.order] then
+								add(
+									path .. ".order",
+									"DUPLICATE",
+									"order " .. tostring(group.order) .. " is used twice"
+								)
+							end
+							usedOrders[group.order] = true
+						end
+						str(path .. ".nameKey", group.nameKey)
+						local entries = tbl(path .. ".entries", group.entries)
+						if entries and #entries == 0 then
+							add(path .. ".entries", "MISSING_FIELD", path .. ".entries must not be empty")
+						end
+						for index, entry in entries or {} do
+							local entryPath = path .. ".entries." .. tostring(index)
+							if tbl(entryPath, entry) and id(entryPath .. ".id", entry.id) then
+								if usedEntries[entry.id] then
+									add(entryPath .. ".id", "DUPLICATE", "entry " .. entry.id .. " is used twice")
+								end
+								usedEntries[entry.id] = true
+								local itemTypes = tbl(entryPath .. ".itemTypes", entry.itemTypes)
+								if itemTypes and #itemTypes == 0 then
+									add(entryPath .. ".itemTypes", "MISSING_FIELD", entryPath .. ".itemTypes is empty")
+								end
+								for _, itemTypeId in itemTypes or {} do
+									local itemPath = entryPath .. ".itemTypes"
+									if type(config.items) ~= "table" or config.items[itemTypeId] == nil then
+										add(itemPath, "UNKNOWN_REFERENCE", "unknown item type " .. tostring(itemTypeId))
+									elseif usedItems[itemTypeId] then
+										add(itemPath, "DUPLICATE", "item type " .. itemTypeId .. " is used twice")
+									end
+									usedItems[itemTypeId] = true
+								end
+							end
+						end
+						local reward = tbl(path .. ".reward", group.reward)
+						if reward then
+							if reward.coins ~= nil then
+								num(path .. ".reward.coins", reward.coins, { integer = true, nonNegative = true })
+							end
+							if reward.effects ~= nil and tbl(path .. ".reward.effects", reward.effects) then
+								for _, stat in sortedKeys(reward.effects) do
+									local effectPath = path .. ".reward.effects." .. stat
+									local effect = reward.effects[stat]
+									if table.find(Schema.STATS, stat) == nil then
+										add(effectPath, "UNKNOWN_ENUM", "unknown stat " .. tostring(stat))
+									elseif tbl(effectPath, effect) then
+										if effect.add ~= nil then
+											num(effectPath .. ".add", effect.add, {})
+										end
+										if effect.mul ~= nil then
+											num(effectPath .. ".mul", effect.mul, { nonNegative = true })
+										end
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+
 		-- prestige (optional)
 		if config.prestige ~= nil then
 			local prestige = tbl("prestige", config.prestige)

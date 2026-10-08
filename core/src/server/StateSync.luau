@@ -12,7 +12,9 @@
 -- Schnappschuss: { seq, coins, capacity, inventoryCount, inventory = { [itemTypeId] = count }, range, sellFactor,
 -- upgrades = { [dimension] = { level, maxLevel, nextCost? } }, zones = { [zoneId] = { unlocked, order } },
 -- items = { { instanceId, itemTypeId, zoneId, position } }, prestige? = { level, multiplier, nextMultiplier,
--- coinsRequired, available } }. prestige nur, wenn das Game Prestige nutzt. seq steigt pro Spieler streng.
+-- coinsRequired, available }, collection? = { found = { [entryId] = true }, foundCount, total, groups =
+-- { [groupId] = { order, entries, found, done, rewardCoins, rewardEffects } } } }. prestige bzw. collection nur,
+-- wenn das Game sie nutzt. seq steigt pro Spieler streng.
 local Log = require(script.Parent.Parent.shared.Log)
 local PlayerContext = require(script.Parent.Parent.shared.PlayerContext)
 
@@ -44,6 +46,22 @@ export type PrestigeState = {
 	available: boolean,
 }
 
+export type CollectionGroupState = {
+	order: number,
+	entries: { string },
+	found: number,
+	done: boolean,
+	rewardCoins: number,
+	rewardEffects: { [string]: { add: number?, mul: number? } },
+}
+
+export type CollectionState = {
+	found: { [string]: boolean },
+	foundCount: number,
+	total: number,
+	groups: { [string]: CollectionGroupState },
+}
+
 export type Snapshot = {
 	seq: number,
 	coins: number,
@@ -56,6 +74,7 @@ export type Snapshot = {
 	zones: { [string]: ZoneState },
 	items: { ItemState },
 	prestige: PrestigeState?,
+	collection: CollectionState?,
 }
 
 export type Options = {
@@ -152,6 +171,13 @@ function StateSync.new(options: Options): StateSync
 				available = coins >= prestige.coinsRequired,
 			}
 		end
+		local collectionState: CollectionState? = nil
+		if modules.collection ~= nil then
+			collectionState = modules.collection:state(ctx)
+			if collectionState == nil then
+				return nil, "corrupt collection"
+			end
+		end
 		return {
 			coins = coins,
 			capacity = math.floor(modules.modifiers:value(ctx, "capacity")),
@@ -163,6 +189,7 @@ function StateSync.new(options: Options): StateSync
 			zones = zones,
 			items = items,
 			prestige = prestigeState,
+			collection = collectionState,
 		},
 			nil
 	end

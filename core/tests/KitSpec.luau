@@ -1,5 +1,5 @@
 --!strict
--- Tests 105-110, 117-128, 132-134, 142: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
+-- Tests 105-110, 117-128, 132-134, 142, 149: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
 -- Test-Containern. Server-Schnappschuesse mit der Testbed-ServerConfig, Darstellung mit der ClientConfig.
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,6 +12,8 @@ local Log = require(FactoryCore.shared.Log)
 local ItemView = require(FactoryKit.ItemView)
 local HudModel = require(FactoryKit.HudModel)
 local HudView = require(FactoryKit.HudView)
+local AlbumModel = require(FactoryKit.AlbumModel)
+local AlbumView = require(FactoryKit.AlbumView)
 local FeedbackModel = require(FactoryKit.FeedbackModel)
 local FeedbackView = require(FactoryKit.FeedbackView)
 local OnboardingModel = require(FactoryKit.OnboardingModel)
@@ -235,8 +237,9 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				for _ in buttons do
 					count += 1
 				end
-				-- collect, sell, unlock, upgrades, upgradesClose, prestige, prestigeConfirm, prestigeCancel, drei Upgrades
-				t.expect(count).toBe(11)
+				-- collect, sell, unlock, upgrades, upgradesClose, album, albumClose, prestige, prestigeConfirm,
+				-- prestigeCancel, drei Upgrades
+				t.expect(count).toBe(13)
 				-- Rand-Knoepfe: Skalenwerte, feste Pixelgroesse ueber UISizeConstraint, mindestens Touch-Groesse.
 				for _, name in { "collect", "sell", "unlock", "upgrades" } do
 					local button = buttons[name]
@@ -1159,5 +1162,130 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 					.toEqual({ prestiged = 1, prestigeMultiplier = 1.5 })
 			end
 		)
+
+		t.it("149 Album: rows by order with progress and rewards; silhouettes; album button; album events", function()
+			local strings = {
+				hud_album = "A",
+				album_title = "T",
+				album_progress = "{found} / {total}",
+				album_row_progress = "{found}/{total}",
+				album_reward_coins = "+{coins}",
+				album_reward_bonus = "+{percent}%",
+				album_reward_done = "OK",
+				decimal_separator = ",",
+				g1 = "Eins",
+				g2 = "Zwei",
+				e1 = "Erstes",
+			}
+			local display = {
+				groups = { group_a = "g1", group_b = "g2" },
+				entries = { e1 = { nameKey = "e1", rarity = "epic" } },
+			}
+			local collection = {
+				found = { e1 = true },
+				foundCount = 1,
+				total = 3,
+				groups = {
+					group_b = {
+						order = 2,
+						entries = { "e3" },
+						found = 0,
+						done = false,
+						rewardCoins = 0,
+						rewardEffects = { sellFactor = { mul = 1.025 } },
+					},
+					group_a = {
+						order = 1,
+						entries = { "e1", "e2" },
+						found = 1,
+						done = false,
+						rewardCoins = 300,
+						rewardEffects = {},
+					},
+				},
+			}
+			local base = testbedSnapshot()
+			t.expect(AlbumModel.build(base, display, strings).visible).toBe(false)
+			local model = AlbumModel.build(with(base, { collection = collection }), display, strings)
+			t.expect({ model.visible, model.progressText, #model.rows }).toEqual({ true, "1 / 3", 2 })
+			t.expect({ model.rows[1].name, model.rows[1].progressText, model.rows[1].rewardText })
+				.toEqual({ "Eins", "1/2", "+300" })
+			t.expect(model.rows[2].rewardText).toBe("+2,5%")
+			t.expect(model.rows[1].cells).toEqual({
+				{ entryId = "e1", name = "Erstes", found = true, rarity = "epic" },
+				{ entryId = "e2", name = "e2", found = false, rarity = nil },
+			})
+			local doneCollection = table.clone(collection)
+			doneCollection.groups = table.clone(collection.groups)
+			doneCollection.groups.group_a = table.clone(collection.groups.group_a)
+			doneCollection.groups.group_a.done = true
+			local doneModel = AlbumModel.build(with(base, { collection = doneCollection }), display, strings)
+			t.expect(doneModel.rows[1].rewardText).toBe("OK +300")
+
+			local container = Instance.new("Folder")
+			local template = Instance.new("Model")
+			local ok, err = pcall(function()
+				local body = Instance.new("Part")
+				body.Color = Color3.fromRGB(10, 200, 30)
+				body.Material = Enum.Material.Neon
+				body.Parent = template
+				local album = AlbumView.new(container, {
+					preview = function(entryId: string): Model?
+						return if entryId == "e1" or entryId == "e2" then template else nil
+					end,
+				})
+				album:render(model)
+				local found = (album:cell("e1") :: ViewportFrame):FindFirstChildWhichIsA("Model") :: Model
+				local missing = (album:cell("e2") :: ViewportFrame):FindFirstChildWhichIsA("Model") :: Model
+				local foundPart = found:FindFirstChildWhichIsA("BasePart") :: BasePart
+				local missingPart = missing:FindFirstChildWhichIsA("BasePart") :: BasePart
+				t.expect({ foundPart.Color, foundPart.Material }).toEqual({ body.Color, Enum.Material.Neon })
+				t.expect({ missingPart.Color, missingPart.Material })
+					.toEqual({ AlbumView.SILHOUETTE, Enum.Material.SmoothPlastic })
+				t.expect(album:cell("e3") ~= nil).toBe(true)
+				-- Vorlage bleibt unveraendert.
+				t.expect({ body.Color, body.Parent }).toEqual({ Color3.fromRGB(10, 200, 30), template })
+
+				local intents = {
+					collect = function()
+						return true
+					end,
+					sell = function()
+						return true
+					end,
+					buyUpgrade = function()
+						return true
+					end,
+					unlockZone = function()
+						return true
+					end,
+				}
+				local view = HudView.new(container, intents, ClientConfig.uiTokens, {})
+				view:renderAlbum(AlbumModel.build(base, display, strings))
+				t.expect((view:element("album") :: GuiObject).Visible).toBe(false)
+				view:renderAlbum(model)
+				t.expect((view:element("album") :: GuiObject).Visible).toBe(true)
+				view:press("upgrades")
+				t.expect(view:press("album")).toBe(true)
+				t.expect({ view:albumOpen(), view:windowOpen() }).toEqual({ true, false })
+				t.expect(view:press("albumClose")).toBe(true)
+				t.expect(view:albumOpen()).toBe(false)
+				view:destroy()
+			end)
+			container:Destroy()
+			template:Destroy()
+			if not ok then
+				error(err, 0)
+			end
+
+			local after = table.clone(collection)
+			after.found = { e1 = true, e2 = true }
+			after.groups = table.clone(collection.groups)
+			after.groups.group_a = table.clone(collection.groups.group_a)
+			after.groups.group_a.done = true
+			local events =
+				FeedbackModel.compare(with(base, { collection = collection }), with(base, { collection = after }))
+			t.expect(events).toEqual({ albumNew = "e2", albumNewCount = 1, albumCompleted = "group_a" })
+		end)
 	end)
 end

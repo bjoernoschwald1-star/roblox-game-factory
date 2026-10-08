@@ -8,6 +8,9 @@
 --
 -- Remotes (fest): collect() ohne Argumente (Position kommt vom Server ueber services.getPosition, nie vom
 -- Client), sell(), buyUpgrade(dimension), unlockZone(zoneId), prestige(). Rate Limits aus config.remotes.
+-- Sammelalbum nur mit config.collection: jedes erfolgreiche collect vermerkt die Itemtypen (Collection.record);
+-- wird dabei eine Gruppe belohnt, wird sofort gespeichert. Die Album-Boni wirken als Modifier-Quelle
+-- "collection" und bleiben nach einem Prestige erhalten.
 -- prestige wirkt nur mit config.prestige (sonst ignoriert): Reset ueber Prestige, danach werden die Items des
 -- Spielers neu verteilt (nur freie Zonen) und das Profil sofort gespeichert (Fehler: Autosave holt nach).
 -- Analytics: onCollected -> first_collect, collect mit FULL -> inventory_full, onSold -> first_sell,
@@ -17,6 +20,7 @@
 -- dispatch, refillAll mit neuen Items, gewaehrtem Kauf und setPassOwned; flushState sendet die Schnappschuesse.
 local Analytics = require(script.Parent.Analytics)
 local Collecting = require(script.Parent.Collecting)
+local Collection = require(script.Parent.Collection)
 local Economy = require(script.Parent.Economy)
 local Inventory = require(script.Parent.Inventory)
 local Log = require(script.Parent.Parent.shared.Log)
@@ -72,6 +76,7 @@ export type Modules = {
 	analytics: Analytics.Analytics,
 	gateway: RemoteGateway.RemoteGateway,
 	prestige: Prestige.Prestige?,
+	collection: Collection.Collection?,
 }
 
 export type Game = {
@@ -145,6 +150,7 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 				perks = {},
 				funnel = {},
 				prestige = 0,
+				collection = { found = {}, rewarded = {} },
 			}
 		end,
 		schemaVersion = config.game.schemaVersion,
@@ -205,6 +211,29 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 		end,
 	})
 
+	-- Sammelalbum (optional), vor Collecting, damit onCollected vermerken kann.
+	local collection: Collection.Collection? = nil
+	if config.collection ~= nil then
+		local created = Collection.new({
+			getProfile = getProfile,
+			economy = economy,
+			groups = config.collection.groups :: any,
+			onRecorded = function(ctx, recorded)
+				if #recorded.completedGroups > 0 then
+					local saved, saveErr = session:save(ctx)
+					if not saved then
+						log:warnThrottled(
+							"collection_save",
+							"[GameServer] collection save failed: " .. tostring(saveErr)
+						)
+					end
+				end
+			end,
+		})
+		modifiers:registerSource("collection", created:modifierSource())
+		collection = created
+	end
+
 	local itemSpawns = {}
 	local prices = {}
 	for itemId, item in config.items do
@@ -228,8 +257,15 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 		rateLimit = config.collect.rateLimit,
 		clock = services.clock,
 		rng = services.rng,
-		onCollected = function(ctx)
+		onCollected = function(ctx, collected)
 			analytics:step(ctx, "first_collect")
+			if collection ~= nil then
+				local itemTypeIds = {}
+				for _, instance in collected do
+					table.insert(itemTypeIds, instance.itemTypeId)
+				end
+				collection:record(ctx, itemTypeIds)
+			end
 		end,
 	})
 
@@ -364,6 +400,7 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 				zones = zones,
 				collecting = collecting,
 				prestige = prestige,
+				collection = collection,
 			},
 			config = config,
 			send = services.sendState,
@@ -476,6 +513,7 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 			analytics = analytics,
 			gateway = gateway,
 			prestige = prestige,
+			collection = collection,
 		},
 	}
 	return composed

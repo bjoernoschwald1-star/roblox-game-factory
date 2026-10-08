@@ -1,7 +1,8 @@
 --!strict
 -- Reine Logik des Feedbacks: vergleicht zwei aufeinanderfolgende Schnappschuesse und liefert Ereignisse
 -- { collected = n, earned = coins, upgraded = dimension, unlocked = zoneId, full = true, prestiged = Stufe,
--- prestigeMultiplier = neuer Faktor }. Nach einem Prestige meldet compare nur prestiged (der Rueckbau von Coins,
+-- prestigeMultiplier = neuer Faktor, albumNew = neuer Album-Eintrag (bei mehreren der alphabetisch erste),
+-- albumNewCount, albumCompleted = neu belohnte Album-Gruppe }. Nach einem Prestige meldet compare nur prestiged (der Rueckbau von Coins,
 -- Upgrades und Zonen ist kein eigenes Ereignis). Nur vorhandene
 -- Ereignisse stehen in der Tabelle; gleiche Schnappschuesse ergeben eine leere Tabelle. Welche Darstellung zu
 -- welchem Ereignis gehoert, legt die Effekt-Tabelle des Games fest (Erweiterungspunkt Feedback-Profil).
@@ -20,6 +21,9 @@ export type Events = {
 	foundRarity: string?,
 	prestiged: number?,
 	prestigeMultiplier: number?,
+	albumNew: string?,
+	albumNewCount: number?,
+	albumCompleted: string?,
 }
 
 local RARITY_RANK: { [string]: number } = { common = 1, rare = 2, epic = 3, legendary = 4 }
@@ -109,6 +113,29 @@ function FeedbackModel.compare(old: any, new: any, rarities: { [string]: string 
 	local wasFull = old.inventoryCount >= old.capacity
 	if not wasFull and new.inventoryCount >= new.capacity then
 		events.full = true
+	end
+	local oldAlbum, newAlbum = old.collection, new.collection
+	if type(oldAlbum) == "table" and type(newAlbum) == "table" then
+		local added: { [string]: boolean } = {}
+		local count = 0
+		for entryId in newAlbum.found do
+			if oldAlbum.found[entryId] ~= true then
+				added[entryId] = true
+				count += 1
+			end
+		end
+		if count > 0 then
+			events.albumNew = firstSorted(added)
+			events.albumNewCount = count
+		end
+		local completed: { [string]: boolean } = {}
+		for groupId, group in newAlbum.groups do
+			local before = oldAlbum.groups[groupId]
+			if group.done and before ~= nil and not before.done then
+				completed[groupId] = true
+			end
+		end
+		events.albumCompleted = firstSorted(completed)
 	end
 	if rarities ~= nil then
 		local found = bestFound(old, new, rarities)

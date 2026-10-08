@@ -88,6 +88,24 @@ export type PrestigeConfig = {
 	sellBonusPerLevel: number, -- > 0
 }
 
+-- Sammelalbum (optional): Gruppen mit Eintraegen (je Eintrag ein oder mehrere Itemtypen) und einer einmaligen
+-- Belohnung je vollstaendiger Gruppe (coins und/oder dauerhafte effects auf Stats wie bei Paessen).
+export type CollectionEntry = {
+	id: string,
+	itemTypes: { string },
+}
+
+export type CollectionGroup = {
+	order: number, -- ganze Zahl >= 1, eindeutig
+	nameKey: string,
+	entries: { CollectionEntry },
+	reward: { coins: number?, effects: { [string]: Effect }? },
+}
+
+export type CollectionConfig = {
+	groups: { [string]: CollectionGroup },
+}
+
 export type SimConfig = {
 	tripSeconds: number, -- Zusatzzeit je Sammelfahrt
 	sellSeconds: number, -- Zusatzzeit je Verkauf
@@ -106,6 +124,7 @@ export type GameConfig = {
 	texts: { [string]: string },
 	sim: SimConfig,
 	prestige: PrestigeConfig?,
+	collection: CollectionConfig?,
 }
 
 local Schema = {}
