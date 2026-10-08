@@ -1,5 +1,5 @@
 --!strict
--- Tests 105-110, 117-128, 132: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
+-- Tests 105-110, 117-128, 132-133: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
 -- Test-Containern. Server-Schnappschuesse mit der Testbed-ServerConfig, Darstellung mit der ClientConfig.
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,6 +20,7 @@ local OnboardingView = require(FactoryKit.OnboardingView)
 local HudLayout = require(FactoryKit.HudLayout)
 local Text = require(FactoryKit.Text)
 local CollectFx = require(FactoryKit.CollectFx)
+local RangeView = require(FactoryKit.RangeView)
 local LightingProfile = require(FactoryKit.LightingProfile)
 local ClientConfig = require(ReplicatedStorage.TestbedShared.ClientConfig)
 local ServerConfig = require(ServerScriptService.TestbedServerUnderTest.ServerConfig)
@@ -945,6 +946,70 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 					t.expect(#container:GetChildren()).toBe(0)
 				end)
 				container:Destroy()
+				if not ok then
+					error(err, 0)
+				end
+			end
+		)
+
+		t.it(
+			"133 Upgrade feedback: burst at the character; range ring grows from old to new radius, then hides",
+			function()
+				local world = Instance.new("Folder")
+				world.Parent = workspace
+				local container = Instance.new("Folder")
+				local ok, err = pcall(function()
+					local root = Instance.new("Part")
+					root.Anchored = true
+					root.Position = Vector3.new(0, 10, 0)
+					root.Parent = world
+					local pending: { () -> () } = {}
+					local feedback = FeedbackView.new(container, ClientConfig.effects, 1, {
+						adornee = function()
+							return root
+						end,
+						worldParent = world,
+						schedule = function(_seconds: number, callback: () -> ())
+							table.insert(pending, callback)
+						end,
+					})
+					feedback:show({ upgraded = "range" } :: any, texts)
+					local burst = world:FindFirstChild("UpgradeBurst") :: Part
+					t.expect(burst ~= nil).toBe(true)
+					t.expect(burst.Position).toBe(root.Position)
+					for _, callback in pending do
+						callback()
+					end
+					t.expect(world:FindFirstChild("UpgradeBurst")).toBe(nil)
+					feedback:destroy()
+
+					local view = RangeView.new(world)
+					local ring = view:ring()
+					t.expect(#ring:GetChildren()).toBe(RangeView.SEGMENTS)
+					-- Erster Wert: keine Aenderung, kein Ring.
+					t.expect(view:update(root, 12, 0)).toBe(false)
+					t.expect(view:update(root, 16, 10)).toBe(true)
+					local segment = ring:FindFirstChild("Segment1") :: Part
+					local function radius(): number
+						local offset = segment.Position - Vector3.new(0, segment.Position.Y, 0)
+						return offset.Magnitude
+					end
+					t.expect(math.abs(radius() - 12) < 0.01).toBe(true)
+					view:update(root, 16, 10 + RangeView.GROW_SECONDS / 2)
+					local mid = radius()
+					t.expect(mid > 12 and mid < 16).toBe(true)
+					view:update(root, 16, 10 + RangeView.GROW_SECONDS)
+					t.expect(math.abs(radius() - 16) < 0.01).toBe(true)
+					t.expect(segment.Transparency < 1).toBe(true)
+					t.expect(view:update(root, 16, 10 + RangeView.SHOW_SECONDS)).toBe(false)
+					t.expect(segment.Transparency).toBe(1)
+					-- Ohne Figur kein Ring.
+					t.expect(view:update(nil, 20, 20)).toBe(false)
+					view:destroy()
+					t.expect(world:FindFirstChild("FactoryRangeRing")).toBe(nil)
+				end)
+				container:Destroy()
+				world:Destroy()
 				if not ok then
 					error(err, 0)
 				end

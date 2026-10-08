@@ -225,7 +225,11 @@ local effects = {
 	unlocked = { textKey = "feedback_unlocked", color = PALETTE.olive_green },
 	full = { textKey = "feedback_full", color = PALETTE.magnet_red },
 	found = { textKey = "feedback_found", color = PALETTE.neon_pink },
-	sounds = {},
+	-- Nur kostenlose Sounds des Erstellers "Roblox" aus dem Creator Store. Fuer Einsammeln, Upgrade, Freischalten
+	-- und seltenen Fund fand sich kein eindeutig passender Roblox-Sound; diese bleiben bewusst leer.
+	sounds = {
+		earned = "rbxassetid://127645268874265", -- CoinTransfer_01 (Roblox): Verkaufen
+	},
 }
 
 local uiTokens = {

@@ -10,6 +10,7 @@
 -- Hinweis aus, solange banner() ein Banner liefert - so ueberdeckt es kein HUD-Element.
 -- Effekt-Tabelle des Games: je Ereignis { textKey, color }; fehlt ein Eintrag, gilt DEFAULT_EFFECTS.
 -- effects.sounds[ereignis] = SoundId des Games; das Kit spielt nur, wenn das Game eine ID liefert.
+-- Upgrade gekauft: kurzer, wachsender Lichtball ("UpgradeBurst") am Charakter in der Upgrade-Farbe.
 -- Popups verschwinden nach lifetimeSeconds (options.schedule ersetzt task.delay, z. B. im Test).
 -- Doku: https://create.roblox.com/docs/reference/engine/classes/BillboardGui
 --       https://create.roblox.com/docs/reference/engine/classes/Camera#FieldOfView
@@ -28,6 +29,7 @@ export type Options = {
 	camera: Camera?,
 	schedule: ((seconds: number, callback: () -> ()) -> ())?,
 	rarityColors: { [string]: Color3 }?,
+	worldParent: Instance?, -- fuer den Upgrade-Effekt am Charakter (Standard workspace)
 }
 
 export type FeedbackView = {
@@ -186,6 +188,33 @@ function FeedbackView.new(
 		end
 	end
 
+	local function upgradeBurst(color: Color3)
+		local root = if opts.adornee ~= nil then opts.adornee() else nil
+		if root == nil then
+			return
+		end
+		local burst = Instance.new("Part")
+		burst.Name = "UpgradeBurst"
+		burst.Shape = Enum.PartType.Ball
+		burst.Anchored = true
+		burst.CanCollide = false
+		burst.CanQuery = false
+		burst.CanTouch = false
+		burst.Material = Enum.Material.Neon
+		burst.Color = color
+		burst.Transparency = 0.35
+		burst.Size = Vector3.one * 2
+		burst.Position = root.Position
+		burst.Parent = opts.worldParent or workspace
+		TweenService:Create(burst, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = Vector3.one * 10,
+			Transparency = 1,
+		}):Play()
+		schedule(0.6, function()
+			burst:Destroy()
+		end)
+	end
+
 	local function wow(text: string, rarity: string?)
 		local level = FeedbackModel.wowLevel(rarity)
 		local colors = opts.rarityColors or {}
@@ -261,6 +290,9 @@ function FeedbackView.new(
 					local scale = if name == "collected" then POPUP_SCALE[FeedbackModel.rank(events.foundRarity)] else 1
 					popup(lines[index], effectFor(effects, name).color or Color3.new(1, 1, 1), scale, index)
 					playSound(name)
+					if name == "upgraded" then
+						upgradeBurst(effectFor(effects, name).color or Color3.fromRGB(120, 220, 255))
+					end
 				end
 			end
 			local text = FeedbackView.bannerText(events, texts, effects)

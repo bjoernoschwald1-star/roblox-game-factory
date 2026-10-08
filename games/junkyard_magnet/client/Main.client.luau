@@ -8,6 +8,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
+-- Roblox-Werkzeugleiste ausblenden: der Magnet ist immer ausgeruestet, Bedienung ueber den runden Knopf.
+-- Doku: https://create.roblox.com/docs/reference/engine/classes/StarterGui#SetCoreGuiEnabled
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 local playerGui = player:WaitForChild("PlayerGui")
 local FactoryClient = ReplicatedStorage:WaitForChild("FactoryClient")
 local FactoryKit = ReplicatedStorage:WaitForChild("FactoryKit")
@@ -16,6 +19,7 @@ local ClientState = require(FactoryClient:WaitForChild("ClientState"))
 local Intents = require(FactoryClient:WaitForChild("Intents"))
 local ItemView = require(FactoryKit:WaitForChild("ItemView"))
 local CollectFx = require(FactoryKit:WaitForChild("CollectFx"))
+local RangeView = require(FactoryKit:WaitForChild("RangeView"))
 local HudModel = require(FactoryKit:WaitForChild("HudModel"))
 local HudView = require(FactoryKit:WaitForChild("HudView"))
 local FeedbackModel = require(FactoryKit:WaitForChild("FeedbackModel"))
@@ -69,6 +73,8 @@ local feedback = FeedbackView.new(playerGui, ClientConfig.effects, nil, {
 local onboarding = OnboardingModel.new(ClientConfig.onboardingSteps)
 local onboardingView = OnboardingView.new(playerGui, workspace, ClientConfig.uiTokens.highlight)
 local collectFx = CollectFx.new(fxFolder, { clock = os.clock })
+-- Reichweiten-Kreis: zeigt nach einem Reichweiten-Upgrade kurz, wie weit der Magnet jetzt zieht.
+local rangeView = RangeView.new(fxFolder, ClientConfig.palette.gold)
 local latest: any = nil
 
 -- Zielort des Onboardings: naechstes eigenes Item bzw. die Verkaufsflaeche.
@@ -169,6 +175,7 @@ RunService.Heartbeat:Connect(function()
 	local now = os.clock()
 	ItemView.animate(itemFolder, now)
 	collectFx:update(now)
+	rangeView:update(rootPart(), if latest ~= nil then latest.range else nil, now)
 	local root = rootPart()
 	-- Volles Inventar: Hinweis und Strahl zur Verkaufsflaeche haben Vorrang vor dem Onboarding.
 	local full = latest ~= nil and latest.inventoryCount >= latest.capacity

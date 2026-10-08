@@ -22,8 +22,8 @@
 --     Sprungknopf. Groesse 80 px (PC), 72 px (Handy), 88 px (Tablet), damit die Beschriftung lesbar ist.
 --   Rand-Knoepfe "unlock" (Zone freischalten) und "upgrades" (oeffnet das Upgrade-Fenster): unten links, auf
 --     Touch-Flaechen rechts neben dem Thumbstick bzw. (Handy hoch) ueber ihm.
---   Upgrade-Fenster ("window"): mittig, nur auf Knopfdruck sichtbar; es ist modal und gehoert nicht zur
---     Ueberlappungspruefung.
+--   Upgrade-Fenster ("window"): klein und mittig, nur auf Knopfdruck sichtbar; es ueberdeckt keine Anzeigen und
+--     Knoepfe (windowRect), darf als modales Fenster aber Freihaltezonen ueberdecken.
 -- Doku: https://create.roblox.com/docs/ui/position-and-size#reserved-zones
 --       https://create.roblox.com/docs/reference/engine/classes/ScreenGui#ScreenInsets
 --       https://create.roblox.com/docs/reference/engine/classes/UISizeConstraint
@@ -85,6 +85,57 @@ function HudLayout.reserved(area: Vector2): { [string]: Rect }
 		zones.playerList = { x = area.X - PLAYER_LIST, y = 0, w = PLAYER_LIST, h = PLAYER_LIST }
 	end
 	return zones
+end
+
+-- Upgrade-Fenster: moeglichst gross (hoechstens WINDOW_SIZES[1]), mittig und ohne Ueberdeckung von Anzeigen,
+-- Hinweis und Knoepfen; passt es mittig nicht, wird es senkrecht verschoben (kleinster Versatz zuerst), sonst
+-- kleiner. Freihaltezonen (Chat usw.) darf das modale Fenster ueberdecken.
+local WINDOW_SIZES = {
+	Vector2.new(340, 260),
+	Vector2.new(320, 240),
+	Vector2.new(300, 220),
+	Vector2.new(280, 200),
+	Vector2.new(260, 190),
+	Vector2.new(240, 180),
+	Vector2.new(220, 170),
+}
+
+function HudLayout.windowRect(area: Vector2, rects: { [string]: Rect }): Rect
+	local others: { Rect } = {}
+	for _, name in { "coins", "inventory", "hint", "unlock", "upgrades", "collect", "sell" } do
+		if rects[name] ~= nil then
+			table.insert(others, rects[name])
+		end
+	end
+	local function free(candidate: Rect): boolean
+		if candidate.y < MARGIN or candidate.y + candidate.h > area.Y - MARGIN then
+			return false
+		end
+		for _, other in others do
+			if HudLayout.overlaps(candidate, other) then
+				return false
+			end
+		end
+		return true
+	end
+	local offsets = { 0 }
+	for step = 10, 200, 10 do
+		table.insert(offsets, -step)
+		table.insert(offsets, step)
+	end
+	local last: Rect? = nil
+	for _, size in WINDOW_SIZES do
+		local w = math.min(size.X, area.X - 2 * MARGIN)
+		local h = math.min(size.Y, area.Y - 2 * MARGIN)
+		for _, dy in offsets do
+			local candidate = { x = (area.X - w) / 2, y = (area.Y - h) / 2 + dy, w = w, h = h }
+			if free(candidate) then
+				return candidate
+			end
+		end
+		last = { x = (area.X - w) / 2, y = (area.Y - h) / 2, w = w, h = h }
+	end
+	return last :: Rect
 end
 
 -- Pixel-Rechtecke aller Elemente fuer eine Flaeche (Grundlage fuer specs).
@@ -154,10 +205,7 @@ function HudLayout.rects(area: Vector2): { [string]: Rect }
 		rects.unlock = { x = MARGIN, y = bottom - buttonH, w = 150, h = buttonH }
 		rects.upgrades = { x = 2 * MARGIN + 150, y = bottom - buttonH, w = 120, h = buttonH }
 	end
-	-- Upgrade-Fenster mittig (modal, nicht Teil der Pruefung)
-	local windowW = math.min(420, area.X - 2 * MARGIN)
-	local windowH = math.min(360, area.Y - 2 * MARGIN)
-	rects.window = { x = (area.X - windowW) / 2, y = (area.Y - windowH) / 2, w = windowW, h = windowH }
+	rects.window = HudLayout.windowRect(area, rects)
 	return rects
 end
 
@@ -220,6 +268,13 @@ function HudLayout.check(viewport: Vector2, topInset: number, upgradeCount: numb
 	zones.center = { x = area.X / 2 - 50, y = viewport.Y / 2 - topInset - 40, w = 100, h = 120 }
 	local names = sortedKeys(rects)
 	local problems: { string } = {}
+	-- Das modale Upgrade-Fenster darf keine Anzeigen und Knoepfe ueberdecken.
+	local window = HudLayout.resolve(specs.window, area)
+	for _, name in names do
+		if HudLayout.overlaps(window, rects[name]) then
+			table.insert(problems, "window/" .. name)
+		end
+	end
 	for i, a in names do
 		local r = rects[a]
 		if r.x < 0 or r.y < 0 or r.x + r.w > area.X + 1e-6 or r.y + r.h > area.Y + 1e-6 then

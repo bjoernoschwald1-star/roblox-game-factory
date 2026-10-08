@@ -87,15 +87,21 @@ local function magnetTool(): Tool
 end
 
 local template = magnetTool()
+-- Die Roblox-Werkzeugleiste ist im Client ausgeblendet (StarterGui:SetCoreGuiEnabled Backpack); der Magnet wird
+-- deshalb direkt in die Hand gegeben (Humanoid:EquipTool) statt ueber den Rucksack ausgewaehlt.
+local function giveMagnet(character: Model)
+	if character:FindFirstChild("Magnet") ~= nil then
+		return
+	end
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	if humanoid ~= nil and humanoid:IsA("Humanoid") then
+		humanoid:EquipTool(template:Clone())
+	end
+end
 local function equip(player: Player)
-	player.CharacterAdded:Connect(function()
-		local backpack = player:WaitForChild("Backpack")
-		if backpack:FindFirstChild("Magnet") == nil then
-			template:Clone().Parent = backpack
-		end
-	end)
+	player.CharacterAdded:Connect(giveMagnet)
 	if player.Character ~= nil then
-		template:Clone().Parent = player:WaitForChild("Backpack")
+		giveMagnet(player.Character)
 	end
 end
 Players.PlayerAdded:Connect(equip)
