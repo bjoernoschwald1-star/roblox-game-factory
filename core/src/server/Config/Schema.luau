@@ -80,6 +80,14 @@ export type RemoteLimit = {
 	windowSeconds: number,
 }
 
+-- Prestige (optional): Zuruecksetzen gegen einen dauerhaften Verkaufsmultiplikator. Ab coinsRequired Coins darf
+-- der Spieler zuruecksetzen; jede Prestige-Stufe erhoeht den Verkaufsfaktor um sellBonusPerLevel
+-- (Faktor = 1 + Stufe * sellBonusPerLevel, wirkt als mul auf sellFactor).
+export type PrestigeConfig = {
+	coinsRequired: number, -- ganze Zahl > 0
+	sellBonusPerLevel: number, -- > 0
+}
+
 export type SimConfig = {
 	tripSeconds: number, -- Zusatzzeit je Sammelfahrt
 	sellSeconds: number, -- Zusatzzeit je Verkauf
@@ -97,6 +105,7 @@ export type GameConfig = {
 	remotes: { [string]: RemoteLimit },
 	texts: { [string]: string },
 	sim: SimConfig,
+	prestige: PrestigeConfig?,
 }
 
 local Schema = {}
@@ -107,7 +116,7 @@ Schema.COLLECT_TYPES = table.freeze({ "radius" })
 Schema.SELL_TRIGGERS = table.freeze({ "zone", "npc", "button" })
 Schema.REWARD_TYPES = table.freeze({ "coins", "perk" })
 Schema.CONDITION_TYPES = table.freeze({ "always", "coinsAtLeast", "purchase", "upgradeLevel" })
-Schema.REMOTES = table.freeze({ "collect", "sell", "buyUpgrade", "unlockZone" })
+Schema.REMOTES = table.freeze({ "collect", "sell", "buyUpgrade", "unlockZone", "prestige" })
 -- Seltenheit eines Itemtyps; Wirkung im Spiel nur ueber eigenen spawnWeight und price, sonst reine Anzeige.
 Schema.RARITIES = table.freeze({ "common", "rare", "epic", "legendary" })
 Schema.DEFAULT_RARITY = "common"

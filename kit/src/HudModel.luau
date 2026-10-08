@@ -7,6 +7,8 @@
 -- hud_full, hud_level {level} {maxLevel}, hud_cost {cost}, hud_max, hud_zone_purchase {zone} {cost},
 -- hud_zone_level {zone} {upgrade} {level}, hud_zone_coins {zone} {amount}, hud_zone_all, hud_unlock, hud_upgrades (Standard "Upgrades"), hud_collect,
 -- hud_sell. Die Zonen-Bedingung steht nur einmal (zoneText); der Unlock-Button traegt den kurzen Text hud_unlock.
+-- Prestige (nur wenn der Schnappschuss prestige enthaelt): hud_prestige, prestige_title, prestige_lose,
+-- prestige_gain {multiplier}, prestige_confirm, prestige_cancel; Multiplikator ueber Text.decimal.
 local Text = require(script.Parent.Text)
 
 export type UpgradeEntry = {
@@ -32,6 +34,13 @@ export type Model = {
 	collectEnabled: boolean,
 	collectText: string,
 	sellText: string,
+	prestigeVisible: boolean,
+	prestigeText: string,
+	prestigeTitle: string,
+	prestigeLose: string,
+	prestigeGain: string,
+	prestigeConfirm: string,
+	prestigeCancel: string,
 }
 
 local HudModel = {}
@@ -104,7 +113,16 @@ function HudModel.build(snapshot: any, config: any, texts: { [string]: string }?
 		end
 	end
 
+	local prestige = snapshot.prestige
+	local nextMultiplier = if prestige ~= nil then Text.decimal(prestige.nextMultiplier, strings) else ""
 	return {
+		prestigeVisible = prestige ~= nil and prestige.available == true,
+		prestigeText = Text.lookup(strings, "hud_prestige"),
+		prestigeTitle = Text.lookup(strings, "prestige_title"),
+		prestigeLose = Text.lookup(strings, "prestige_lose"),
+		prestigeGain = Text.lookup(strings, "prestige_gain", { multiplier = nextMultiplier }),
+		prestigeConfirm = Text.lookup(strings, "prestige_confirm"),
+		prestigeCancel = Text.lookup(strings, "prestige_cancel"),
 		coinsText = Text.lookup(strings, "hud_coins", { coins = snapshot.coins }),
 		inventoryText = Text.lookup(
 			strings,

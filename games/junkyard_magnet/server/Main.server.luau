@@ -70,10 +70,24 @@ local function memoryStorage(): any
 	}
 end
 
-ServerRuntime.start(ServerConfig, {
+local runtime = ServerRuntime.start(ServerConfig, {
 	dataStoreName = "junkyard_profiles_v1",
 	storage = if game.PlaceId == 0 then memoryStorage() else nil,
 })
+-- Nur im lokalen Studio-Spieltest (PlaceId 0): Coins gutschreiben fuer die Pruefung der Schmelze ueber Studio-MCP.
+-- Server-only (ServerStorage, fuer Clients unerreichbar); auf veroeffentlichten Places nie angelegt.
+if game.PlaceId == 0 then
+	local credit = Instance.new("BindableFunction")
+	credit.Name = "JunkyardStudioCredit"
+	credit.OnInvoke = function(userId: number, amount: number)
+		local ctx = { userId = userId }
+		local ok, err = runtime.game.modules.economy:credit(ctx, amount, "studio_test")
+		-- Eine collect-Absicht ueber den normalen Weg merkt den Spieler fuer einen neuen Schnappschuss vor.
+		runtime.game:dispatch(ctx, "collect")
+		return ok, err
+	end
+	credit.Parent = game:GetService("ServerStorage")
+end
 
 -- Magnet-Werkzeug aus den Blender-Grundformen (tool_magnet), am Griff gehalten. Rein kosmetisch: Einsammeln laeuft
 -- ueber die Absicht collect (der Client sendet sie beim Benutzen des Werkzeugs).

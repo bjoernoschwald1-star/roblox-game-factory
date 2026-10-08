@@ -45,6 +45,7 @@ local DEFAULT_EFFECTS: { [string]: Effect } = {
 	unlocked = { textKey = "feedback_unlocked", color = Color3.fromRGB(140, 255, 140) },
 	full = { textKey = "feedback_full", color = Color3.fromRGB(255, 120, 120) },
 	found = { textKey = "feedback_found", color = Color3.fromRGB(200, 110, 255) },
+	prestiged = { textKey = "feedback_prestiged", color = Color3.fromRGB(255, 150, 40) },
 }
 local ORDER = { "collected", "earned", "upgraded", "unlocked", "full" }
 local POPUP_SCALE = { 1, 1.2, 1.45, 1.8 } -- nach FeedbackModel.rank
@@ -215,10 +216,8 @@ function FeedbackView.new(
 		end)
 	end
 
-	local function wow(text: string, rarity: string?)
-		local level = FeedbackModel.wowLevel(rarity)
-		local colors = opts.rarityColors or {}
-		local color = colors[rarity or ""] or effectFor(effects, "found").color or Color3.fromRGB(255, 255, 255)
+	-- Grosses Banner auf dem Platz des Hinweises; level 2 zusaetzlich mit Bildschirm-Blitz. sound = Effektname.
+	local function celebrate(text: string, color: Color3, level: number, sound: string)
 		if currentBanner ~= nil then
 			currentBanner:Destroy()
 		end
@@ -277,7 +276,13 @@ function FeedbackView.new(
 				punching = false
 			end)
 		end
-		playSound("found")
+		playSound(sound)
+	end
+
+	local function wow(text: string, rarity: string?)
+		local colors = opts.rarityColors or {}
+		local color = colors[rarity or ""] or effectFor(effects, "found").color or Color3.fromRGB(255, 255, 255)
+		celebrate(text, color, FeedbackModel.wowLevel(rarity), "found")
 	end
 
 	local view: FeedbackView = {
@@ -294,6 +299,14 @@ function FeedbackView.new(
 						upgradeBurst(effectFor(effects, name).color or Color3.fromRGB(120, 220, 255))
 					end
 				end
+			end
+			if events.prestiged ~= nil then
+				local effect = effectFor(effects, "prestiged")
+				local color = effect.color or Color3.fromRGB(255, 150, 40)
+				local multiplier = Text.decimal(events.prestigeMultiplier or 1, texts)
+				celebrate(Text.lookup(texts, effect.textKey, { multiplier = multiplier }), color, 2, "prestiged")
+				upgradeBurst(color)
+				return lines
 			end
 			local text = FeedbackView.bannerText(events, texts, effects)
 			if text ~= nil then

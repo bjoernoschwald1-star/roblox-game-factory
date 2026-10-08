@@ -11,7 +11,8 @@
 --
 -- Schnappschuss: { seq, coins, capacity, inventoryCount, inventory = { [itemTypeId] = count }, range, sellFactor,
 -- upgrades = { [dimension] = { level, maxLevel, nextCost? } }, zones = { [zoneId] = { unlocked, order } },
--- items = { { instanceId, itemTypeId, zoneId, position } } }. seq steigt pro Spieler streng.
+-- items = { { instanceId, itemTypeId, zoneId, position } }, prestige? = { level, multiplier, nextMultiplier,
+-- coinsRequired, available } }. prestige nur, wenn das Game Prestige nutzt. seq steigt pro Spieler streng.
 local Log = require(script.Parent.Parent.shared.Log)
 local PlayerContext = require(script.Parent.Parent.shared.PlayerContext)
 
@@ -35,6 +36,14 @@ export type ItemState = {
 	position: Vector3,
 }
 
+export type PrestigeState = {
+	level: number,
+	multiplier: number,
+	nextMultiplier: number,
+	coinsRequired: number,
+	available: boolean,
+}
+
 export type Snapshot = {
 	seq: number,
 	coins: number,
@@ -46,6 +55,7 @@ export type Snapshot = {
 	upgrades: { [string]: UpgradeState },
 	zones: { [string]: ZoneState },
 	items: { ItemState },
+	prestige: PrestigeState?,
 }
 
 export type Options = {
@@ -127,6 +137,21 @@ function StateSync.new(options: Options): StateSync
 				position = instance.position,
 			})
 		end
+		local prestigeState: PrestigeState? = nil
+		local prestige = modules.prestige
+		if prestige ~= nil then
+			local level = prestige:level(ctx)
+			if level == nil then
+				return nil, "corrupt prestige"
+			end
+			prestigeState = {
+				level = level,
+				multiplier = 1 + level * prestige.sellBonusPerLevel,
+				nextMultiplier = 1 + (level + 1) * prestige.sellBonusPerLevel,
+				coinsRequired = prestige.coinsRequired,
+				available = coins >= prestige.coinsRequired,
+			}
+		end
 		return {
 			coins = coins,
 			capacity = math.floor(modules.modifiers:value(ctx, "capacity")),
@@ -137,6 +162,7 @@ function StateSync.new(options: Options): StateSync
 			upgrades = upgrades,
 			zones = zones,
 			items = items,
+			prestige = prestigeState,
 		},
 			nil
 	end

@@ -1,5 +1,5 @@
 --!strict
--- Client-Absichten: collect(), sell(), buyUpgrade(dimension), unlockZone(zoneId). Eigenstaendig, ohne require auf
+-- Client-Absichten: collect(), sell(), buyUpgrade(dimension), unlockZone(zoneId), prestige(). Eigenstaendig, ohne require auf
 -- Server-Module. Es werden nie Spielwerte, Positionen oder Preise mitgeschickt; der Server entscheidet alles.
 -- Die Drossel schuetzt nur gegen versehentliches Spammen (pro Absicht hoechstens alle minIntervalSeconds); die
 -- verbindlichen Grenzen setzt der Server (RemoteGateway). Jede Methode liefert, ob die Absicht gesendet wurde.
@@ -16,6 +16,7 @@ export type Intents = {
 	sell: (self: Intents) -> boolean,
 	buyUpgrade: (self: Intents, dimension: string) -> boolean,
 	unlockZone: (self: Intents, zoneId: string) -> boolean,
+	prestige: (self: Intents) -> boolean,
 }
 
 local DEFAULT_MIN_INTERVAL_SECONDS = 0.1
@@ -60,6 +61,9 @@ function Intents.new(options: Options): Intents
 		end,
 		unlockZone = function(_self, zoneId: string): boolean
 			return isId(zoneId) and send("unlockZone", zoneId)
+		end,
+		prestige = function(_self): boolean
+			return send("prestige")
 		end,
 	}
 	return intents

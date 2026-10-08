@@ -9,7 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ClientConfig = require(ReplicatedStorage:WaitForChild("JunkyardShared"):WaitForChild("ClientConfig"))
 
 -- Je Zone: Grundpreis der gewoehnlichen Teile; Faktoren und Gewichte je Seltenheit.
-local ZONE_BASE_PRICE: { [string]: number } = { zone_a = 3, zone_b = 8, zone_c = 40 }
+local ZONE_BASE_PRICE: { [string]: number } = { zone_a = 3, zone_b = 8, zone_c = 20, zone_d = 45 }
 local RARITY_VALUES: { [string]: { weight: number, priceFactor: number } } = {
 	common = { weight = 2, priceFactor = 1 },
 	rare = { weight = 0.4, priceFactor = 4 },
@@ -21,16 +21,42 @@ local ZONE_VALUES: { [string]: { density: number, respawnSeconds: number } } = {
 	zone_a = { density = 10, respawnSeconds = 3 },
 	zone_b = { density = 12, respawnSeconds = 3 },
 	zone_c = { density = 14, respawnSeconds = 3 },
+	zone_d = { density = 16, respawnSeconds = 3 },
 }
 
 local UPGRADE_VALUES: { [string]: { stat: string, levels: { any } } } = {
-	range = { stat = "range", levels = { { cost = 50, add = 4 }, { cost = 150, add = 8 } } },
+	range = {
+		stat = "range",
+		levels = {
+			{ cost = 60, add = 3 },
+			{ cost = 550, add = 6 },
+			{ cost = 2300, add = 10 },
+			{ cost = 9200, add = 15 },
+		},
+	},
 	capacity = {
 		stat = "capacity",
-		levels = { { cost = 80, add = 10 }, { cost = 300, add = 20 }, { cost = 900, add = 40 } },
+		levels = {
+			{ cost = 100, add = 8 },
+			{ cost = 1000, add = 18 },
+			{ cost = 3500, add = 30 },
+			{ cost = 11500, add = 50 },
+			{ cost = 34500, add = 80 },
+		},
 	},
-	sell_bonus = { stat = "sellFactor", levels = { { cost = 200, mul = 1.25 }, { cost = 700, mul = 1.5 } } },
+	sell_bonus = {
+		stat = "sellFactor",
+		levels = {
+			{ cost = 400, mul = 1.2 },
+			{ cost = 5800, mul = 1.45 },
+			{ cost = 20700, mul = 1.75 },
+			{ cost = 57500, mul = 2.1 },
+		},
+	},
 }
+
+-- Schmelze (Prestige im Kern): Schwelle und dauerhafter Bonus je Stufe.
+local PRESTIGE = { coinsRequired = 140000, sellBonusPerLevel = 0.5 }
 
 local items = {}
 for itemId, display in ClientConfig.items do
@@ -88,7 +114,9 @@ return {
 		sell = { max = 5, windowSeconds = 1 },
 		buyUpgrade = { max = 5, windowSeconds = 1 },
 		unlockZone = { max = 5, windowSeconds = 1 },
+		prestige = { max = 1, windowSeconds = 2 },
 	},
 	texts = ClientConfig.texts,
 	sim = { tripSeconds = 8, sellSeconds = 4 },
+	prestige = PRESTIGE,
 }

@@ -41,10 +41,10 @@ function World.useBackdrop(templates: { [string]: Model })
 end
 
 local ZONE_SIZE = Vector3.new(44, 1, 44)
--- Zonen mit Deko am Rand (Reihenfolge 2 Autofriedhof, 3 Kranplatz): Die Items erscheinen nur auf der inneren
+-- Zonen mit Deko am Rand (Reihenfolge 2 Autofriedhof, 3 Kranplatz mit Schmelzofen, 4 Hafen mit Schiffswrack): Die Items erscheinen nur auf der inneren
 -- Flaeche (Zonen-Part), der Randstreifen bis ZONE_SIZE traegt Wracks, Container und Faesser, die so keine Items
 -- verdecken. Die sichtbare Bodenflaeche bleibt ZONE_SIZE.
-local DECORATED_ZONES: { [number]: boolean } = { [2] = true, [3] = true }
+local DECORATED_ZONES: { [number]: boolean } = { [2] = true, [3] = true, [4] = true }
 local DECORATED_SPAWN = Vector3.new(30, 1, 30)
 local ZONE_GAP = 16
 local SELL_OFFSET = 22
@@ -468,6 +468,17 @@ function World.build(config: any, parent: Instance?): Instance
 		place("prop_container", cx + 19.5, -2, 90)
 		barrelGroup(cx - 21, -18, 3)
 		barrelGroup(cx - 21, 8, 4)
+		-- Schmelzofen (Ort der Schmelze) in der hinteren rechten Ecke, Oeffnung zur Flaeche.
+		place("prop_furnace", cx + 20, 20, 225)
+	end
+	if #zoneIds >= 4 then
+		local cx = zoneX(4)
+		-- Hafen: gestrandetes Schiffswrack hinter der Flaeche, Container und Reifen am Rand.
+		place("prop_shipwreck", cx - 4, 30, 180)
+		place("prop_container", cx + 19.5, -4, 90)
+		place("prop_container", cx + 19.5, -4, 86, sizes.prop_container.size[2])
+		place("prop_tire_stack", cx - 20, 12, 90)
+		barrelGroup(cx - 21, -16, 5)
 	end
 	barrelGroup(-34, -42, 2)
 	barrelGroup(110, 30, 3)

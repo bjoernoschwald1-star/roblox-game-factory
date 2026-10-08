@@ -1,5 +1,5 @@
 --!strict
--- Tests 105-110, 117-128, 132-134: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
+-- Tests 105-110, 117-128, 132-134, 142: Kit (ReplicatedStorage.FactoryKit) - reine Logik kopflos, Darstellung in
 -- Test-Containern. Server-Schnappschuesse mit der Testbed-ServerConfig, Darstellung mit der ClientConfig.
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -235,7 +235,8 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				for _ in buttons do
 					count += 1
 				end
-				t.expect(count).toBe(8) -- collect, sell, unlock, upgrades, upgradesClose, drei Upgrades
+				-- collect, sell, unlock, upgrades, upgradesClose, prestige, prestigeConfirm, prestigeCancel, drei Upgrades
+				t.expect(count).toBe(11)
 				-- Rand-Knoepfe: Skalenwerte, feste Pixelgroesse ueber UISizeConstraint, mindestens Touch-Groesse.
 				for _, name in { "collect", "sell", "unlock", "upgrades" } do
 					local button = buttons[name]
@@ -1061,5 +1062,102 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 				error(err, 0)
 			end
 		end)
+
+		t.it(
+			"142 Prestige display: button only when available, dialog confirms before the intent, banner event",
+			function()
+				local sent = 0
+				local intents = {
+					collect = function()
+						return true
+					end,
+					sell = function()
+						return true
+					end,
+					buyUpgrade = function()
+						return true
+					end,
+					unlockZone = function()
+						return true
+					end,
+					prestige = function()
+						sent += 1
+						return true
+					end,
+				}
+				local strings = {
+					hud_prestige = "P",
+					prestige_title = "T",
+					prestige_lose = "L",
+					prestige_gain = "x{multiplier}",
+					prestige_confirm = "OK",
+					prestige_cancel = "NO",
+					decimal_separator = ",",
+				}
+				t.expect({ Text.decimal(1.5, strings), Text.decimal(2, nil), Text.decimal(1.25, nil) })
+					.toEqual({ "1,5", "2", "1.25" })
+				local base = testbedSnapshot()
+				local locked = with(base, {
+					prestige = {
+						level = 0,
+						multiplier = 1,
+						nextMultiplier = 1.5,
+						coinsRequired = 500,
+						available = false,
+					},
+				})
+				local ready = with(base, {
+					prestige = {
+						level = 0,
+						multiplier = 1,
+						nextMultiplier = 1.5,
+						coinsRequired = 500,
+						available = true,
+					},
+				})
+				t.expect(HudModel.build(base, config, strings).prestigeVisible).toBe(false)
+				t.expect(HudModel.build(locked, config, strings).prestigeVisible).toBe(false)
+				local model = HudModel.build(ready, config, strings)
+				t.expect({ model.prestigeVisible, model.prestigeGain }).toEqual({ true, "x1,5" })
+
+				local container = Instance.new("Folder")
+				local ok, err = pcall(function()
+					local view = HudView.new(container, intents, ClientConfig.uiTokens)
+					view:render(HudModel.build(locked, config, strings))
+					t.expect((view:element("prestige") :: GuiObject).Visible).toBe(false)
+					view:render(model)
+					t.expect((view:element("prestige") :: GuiObject).Visible).toBe(true)
+					t.expect(view:press("prestige")).toBe(true)
+					t.expect({ view:dialogOpen(), sent }).toEqual({ true, 0 })
+					t.expect(view:press("prestigeCancel")).toBe(true)
+					t.expect({ view:dialogOpen(), sent }).toEqual({ false, 0 })
+					view:press("prestige")
+					t.expect(view:press("prestigeConfirm")).toBe(true)
+					t.expect({ view:dialogOpen(), sent }).toEqual({ false, 1 })
+					-- Nicht mehr moeglich: Fenster schliesst beim naechsten Render.
+					view:press("prestige")
+					view:render(HudModel.build(locked, config, strings))
+					t.expect(view:dialogOpen()).toBe(false)
+					view:destroy()
+				end)
+				container:Destroy()
+				if not ok then
+					error(err, 0)
+				end
+
+				local after = with(base, {
+					coins = 0,
+					prestige = {
+						level = 1,
+						multiplier = 1.5,
+						nextMultiplier = 2,
+						coinsRequired = 500,
+						available = false,
+					},
+				})
+				t.expect(FeedbackModel.compare(with(ready, { coins = 900 }), after))
+					.toEqual({ prestiged = 1, prestigeMultiplier = 1.5 })
+			end
+		)
 	end)
 end

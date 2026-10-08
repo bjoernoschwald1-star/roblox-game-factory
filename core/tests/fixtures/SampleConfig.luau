@@ -111,6 +111,7 @@ return function(): Schema.GameConfig
 			sell = { max = 5, windowSeconds = 1 },
 			buyUpgrade = { max = 5, windowSeconds = 1 },
 			unlockZone = { max = 5, windowSeconds = 1 },
+			prestige = { max = 1, windowSeconds = 2 },
 		},
 		texts = {
 			item_small_name = "Small item",

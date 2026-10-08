@@ -22,6 +22,8 @@
 --     Sprungknopf. Groesse 80 px (PC), 72 px (Handy), 88 px (Tablet), damit die Beschriftung lesbar ist.
 --   Rand-Knoepfe "unlock" (Zone freischalten) und "upgrades" (oeffnet das Upgrade-Fenster): unten links, auf
 --     Touch-Flaechen rechts neben dem Thumbstick bzw. (Handy hoch) ueber ihm.
+--   Rand-Knopf "prestige" (nur sichtbar, wenn Prestige moeglich ist): direkt ueber dem hoeheren der beiden
+--     Rand-Knoepfe, gleiche Breite.
 --   Upgrade-Fenster ("window"): klein und mittig, nur auf Knopfdruck sichtbar; es ueberdeckt keine Anzeigen und
 --     Knoepfe (windowRect), darf als modales Fenster aber Freihaltezonen ueberdecken.
 -- Doku: https://create.roblox.com/docs/ui/position-and-size#reserved-zones
@@ -57,7 +59,7 @@ local DEFAULT_AREAS: { [string]: Vector2 } = {
 local HudLayout = {}
 
 HudLayout.MIN_TOUCH_SIZE = MIN_TOUCH_SIZE
-HudLayout.ELEMENTS = { "coins", "inventory", "hint", "unlock", "upgrades", "collect", "sell" }
+HudLayout.ELEMENTS = { "coins", "inventory", "hint", "unlock", "upgrades", "prestige", "collect", "sell" }
 
 function HudLayout.presetFor(area: Vector2): string
 	if math.min(area.X, area.Y) <= SMALL_EDGE then
@@ -102,7 +104,7 @@ local WINDOW_SIZES = {
 
 function HudLayout.windowRect(area: Vector2, rects: { [string]: Rect }): Rect
 	local others: { Rect } = {}
-	for _, name in { "coins", "inventory", "hint", "unlock", "upgrades", "collect", "sell" } do
+	for _, name in { "coins", "inventory", "hint", "unlock", "upgrades", "prestige", "collect", "sell" } do
 		if rects[name] ~= nil then
 			table.insert(others, rects[name])
 		end
@@ -205,6 +207,8 @@ function HudLayout.rects(area: Vector2): { [string]: Rect }
 		rects.unlock = { x = MARGIN, y = bottom - buttonH, w = 150, h = buttonH }
 		rects.upgrades = { x = 2 * MARGIN + 150, y = bottom - buttonH, w = 120, h = buttonH }
 	end
+	local upper = if rects.unlock.y <= rects.upgrades.y then rects.unlock else rects.upgrades
+	rects.prestige = { x = upper.x, y = upper.y - buttonH - MARGIN, w = upper.w, h = buttonH }
 	rects.window = HudLayout.windowRect(area, rects)
 	return rects
 end

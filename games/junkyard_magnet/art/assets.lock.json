@@ -36,6 +36,26 @@
       "status": "Approved"
     },
     {
+      "file": "item_anchor_chrome.fbx",
+      "assetId": "98193467471737",
+      "status": "Approved"
+    },
+    {
+      "file": "item_anchor_gold.fbx",
+      "assetId": "122353000370670",
+      "status": "Approved"
+    },
+    {
+      "file": "item_anchor_neon.fbx",
+      "assetId": "108751019046616",
+      "status": "Approved"
+    },
+    {
+      "file": "item_anchor_rusty.fbx",
+      "assetId": "81713098745047",
+      "status": "Approved"
+    },
+    {
       "file": "item_barrel_chrome.fbx",
       "assetId": "91360530511425",
       "status": "Approved"
@@ -151,6 +171,11 @@
       "status": "Approved"
     },
     {
+      "file": "prop_furnace.fbx",
+      "assetId": "95832347849216",
+      "status": "Approved"
+    },
+    {
       "file": "prop_ground.fbx",
       "assetId": "121215996394359",
       "status": "Approved"
@@ -168,6 +193,11 @@
     {
       "file": "prop_sell_station.fbx",
       "assetId": "130779732170517",
+      "status": "Approved"
+    },
+    {
+      "file": "prop_shipwreck.fbx",
+      "assetId": "117486924237009",
       "status": "Approved"
     },
     {

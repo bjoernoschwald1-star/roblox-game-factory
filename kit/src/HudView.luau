@@ -5,6 +5,9 @@
 --   Rand-Knoepfe "unlock" (zeigt die naechste Zonen-Bedingung) und "upgrades" (oeffnet das Upgrade-Fenster).
 --   Upgrade-Fenster "UpgradeWindow": mittig, nur auf Knopfdruck; enthaelt je Upgrade einen Knopf "upgrade:<dim>"
 --   und "upgradesClose". Aktionen "upgrades" (umschalten) und "upgradesClose" senden keine Absicht.
+--   Prestige: Rand-Knopf "prestige" (nur sichtbar, wenn moeglich) oeffnet das Bestaetigungsfenster
+--   "PrestigeDialog" (Platz des Upgrade-Fensters) mit Verlust und Gewinn; erst "prestigeConfirm" sendet die
+--   Absicht, "prestigeCancel" schliesst ohne Absicht.
 -- Deaktivierte Knoepfe (z. B. Verkaufen bei leerem Inventar, nicht leistbares Upgrade, nicht freischaltbare Zone,
 -- Einsammeln bei voller Ladung) senden keine Absicht. GuiButton.Activated deckt Maus, Touch und Gamepad ab.
 -- Groessen: Skalenwerte plus UISizeConstraint (feste Pixelgroesse je Vorlage: am PC klein, auf dem Handy
@@ -36,6 +39,7 @@ export type Intents = {
 	sell: (self: any) -> boolean,
 	buyUpgrade: (self: any, dimension: string) -> boolean,
 	unlockZone: (self: any, zoneId: string) -> boolean,
+	prestige: ((self: any) -> boolean)?,
 }
 
 export type HudView = {
@@ -45,6 +49,7 @@ export type HudView = {
 	buttons: (self: HudView) -> { [string]: TextButton },
 	element: (self: HudView, name: string) -> GuiObject?,
 	windowOpen: (self: HudView) -> boolean,
+	dialogOpen: (self: HudView) -> boolean,
 	applyLayout: (self: HudView, area: Vector2) -> string,
 	destroy: (self: HudView) -> (),
 }
@@ -158,6 +163,34 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 	decorate(title)
 	title.Parent = window
 
+	-- Bestaetigungsfenster fuer Prestige (modal, Platz des Upgrade-Fensters)
+	local dialog = Instance.new("Frame")
+	dialog.Name = "PrestigeDialog"
+	dialog.BackgroundColor3 = panel
+	dialog.BackgroundTransparency = 0.05
+	dialog.Visible = false
+	dialog.Parent = gui
+	elements.dialog = dialog
+	local dialogCorner = Instance.new("UICorner")
+	dialogCorner.CornerRadius = UDim.new(0.06, 0)
+	dialogCorner.Parent = dialog
+	local function dialogLine(name: string, y: number, h: number, color: Color3?): TextLabel
+		local line = Instance.new("TextLabel")
+		line.Name = name
+		line.BackgroundTransparency = 1
+		line.Position = UDim2.fromScale(0.06, y)
+		line.Size = UDim2.fromScale(0.88, h)
+		decorate(line)
+		if color ~= nil then
+			line.TextColor3 = color
+		end
+		line.Parent = dialog
+		return line
+	end
+	local dialogTitle = dialogLine("Title", 0.04, 0.16)
+	local dialogLose = dialogLine("Lose", 0.24, 0.22, Color3.fromRGB(255, 150, 140))
+	local dialogGain = dialogLine("Gain", 0.48, 0.2, highlight)
+
 	-- Aktionen; Knoepfe und Tests rufen dieselbe Funktion.
 	local function press(action: string): boolean
 		if enabledById[action] == false then
@@ -175,6 +208,17 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 		elseif action == "upgradesClose" then
 			window.Visible = false
 			return true
+		elseif action == "prestige" then
+			window.Visible = false
+			dialog.Visible = true
+			return true
+		elseif action == "prestigeCancel" then
+			dialog.Visible = false
+			return true
+		elseif action == "prestigeConfirm" then
+			dialog.Visible = false
+			local send = intents.prestige
+			return send ~= nil and send(intents)
 		elseif string.sub(action, 1, 8) == "upgrade:" then
 			return intents:buyUpgrade(string.sub(action, 9))
 		end
@@ -200,6 +244,18 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 	closeButton.Size = UDim2.fromScale(0.11, 0.13)
 	closeButton.BackgroundColor3 = disabled
 	connect(closeButton, "upgradesClose")
+	local prestigeButton = button("prestige", gui)
+	prestigeButton.Visible = false
+	connect(prestigeButton, "prestige")
+	local confirmButton = button("prestigeConfirm", dialog)
+	confirmButton.Position = UDim2.fromScale(0.06, 0.74)
+	confirmButton.Size = UDim2.fromScale(0.42, 0.2)
+	connect(confirmButton, "prestigeConfirm")
+	local cancelButton = button("prestigeCancel", dialog)
+	cancelButton.Position = UDim2.fromScale(0.52, 0.74)
+	cancelButton.Size = UDim2.fromScale(0.42, 0.2)
+	cancelButton.BackgroundColor3 = disabled
+	connect(cancelButton, "prestigeCancel")
 
 	local function setEnabled(target: TextButton, enabled: boolean)
 		enabledById[target.Name] = enabled
@@ -218,10 +274,15 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 			inventory = inventory,
 			unlock = unlockButton,
 			upgrades = upgradesButton,
+			prestige = prestigeButton,
 			collect = collectButton,
 			sell = sellButton,
 			window = window,
 		}
+		local windowSpec = specs.window
+		if windowSpec ~= nil then
+			HudLayout.apply(dialog, windowSpec)
+		end
 		for name, target in targets do
 			local s = specs[name]
 			if s ~= nil then
@@ -260,6 +321,22 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 			setEnabled(collectButton, model.collectEnabled)
 			sellButton.Text = model.sellText
 			setEnabled(sellButton, model.sellEnabled)
+			-- Prestige-Knopf und Bestaetigen in der Hervorhebungsfarbe (wichtige, seltene Entscheidung).
+			prestigeButton.Visible = model.prestigeVisible
+			prestigeButton.Text = model.prestigeText
+			prestigeButton.BackgroundColor3 = highlight
+			prestigeButton.TextColor3 = highlightText
+			confirmButton.BackgroundColor3 = highlight
+			confirmButton.TextColor3 = highlightText
+			dialogTitle.Text = model.prestigeTitle
+			dialogLose.Text = model.prestigeLose
+			dialogGain.Text = model.prestigeGain
+			confirmButton.Text = model.prestigeConfirm
+			cancelButton.Text = model.prestigeCancel
+			-- Nicht mehr moeglich (z. B. nach dem Zuruecksetzen): Fenster schliessen.
+			if not model.prestigeVisible then
+				dialog.Visible = false
+			end
 
 			local count = #model.upgrades
 			for index, entry in model.upgrades do
@@ -293,6 +370,10 @@ function HudView.new(parent: Instance, intents: Intents, tokens: Tokens?): HudVi
 
 		windowOpen = function(_self): boolean
 			return window.Visible
+		end,
+
+		dialogOpen = function(_self): boolean
+			return dialog.Visible
 		end,
 
 		applyLayout = function(_self, area: Vector2): string

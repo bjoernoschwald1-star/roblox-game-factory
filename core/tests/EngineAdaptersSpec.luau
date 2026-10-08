@@ -99,7 +99,7 @@ return function(t: Runner.Api, _ctx: Runner.Context)
 						table.insert(names, child.Name)
 					end
 					table.sort(names)
-					t.expect(names).toEqual({ "buyUpgrade", "collect", "sell", "unlockZone" })
+					t.expect(names).toEqual({ "buyUpgrade", "collect", "prestige", "sell", "unlockZone" })
 				end, function()
 					for _, connection in connections do
 						connection:Disconnect()

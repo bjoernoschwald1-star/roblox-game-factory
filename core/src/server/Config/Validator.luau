@@ -460,6 +460,15 @@ function Validator.validate(config: any): Result
 			end
 		end
 
+		-- prestige (optional)
+		if config.prestige ~= nil then
+			local prestige = tbl("prestige", config.prestige)
+			if prestige then
+				num("prestige.coinsRequired", prestige.coinsRequired, { integer = true, positive = true })
+				num("prestige.sellBonusPerLevel", prestige.sellBonusPerLevel, { positive = true })
+			end
+		end
+
 		-- sim
 		local sim = tbl("sim", config.sim)
 		if sim then

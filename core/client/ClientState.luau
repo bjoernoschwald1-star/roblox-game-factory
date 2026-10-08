@@ -21,6 +21,14 @@ export type ItemState = {
 	position: Vector3,
 }
 
+export type PrestigeState = {
+	level: number,
+	multiplier: number,
+	nextMultiplier: number,
+	coinsRequired: number,
+	available: boolean,
+}
+
 export type Snapshot = {
 	seq: number,
 	coins: number,
@@ -32,6 +40,7 @@ export type Snapshot = {
 	upgrades: { [string]: UpgradeState },
 	zones: { [string]: ZoneState },
 	items: { ItemState },
+	prestige: PrestigeState?,
 }
 
 export type ClientState = {
@@ -96,6 +105,17 @@ local function isValid(snapshot: any): boolean
 		end
 		if type(zone.unlocked) ~= "boolean" or not isFinite(zone.order) then
 			return false
+		end
+	end
+	local prestige = snapshot.prestige
+	if prestige ~= nil then
+		if type(prestige) ~= "table" or type(prestige.available) ~= "boolean" then
+			return false
+		end
+		for _, key in { "level", "multiplier", "nextMultiplier", "coinsRequired" } do
+			if not isFinite(prestige[key]) then
+				return false
+			end
 		end
 	end
 	for _, item in snapshot.items do

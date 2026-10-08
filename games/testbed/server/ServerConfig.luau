@@ -101,6 +101,7 @@ local config = {
 		sell = { max = 5, windowSeconds = 1 },
 		buyUpgrade = { max = 5, windowSeconds = 1 },
 		unlockZone = { max = 5, windowSeconds = 1 },
+		prestige = { max = 1, windowSeconds = 2 },
 	},
 	texts = ClientConfig.texts,
 	sim = { tripSeconds = 8, sellSeconds = 4 },

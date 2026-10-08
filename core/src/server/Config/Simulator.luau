@@ -13,13 +13,18 @@
 --   upgradeLevel wie im Spiel), sonst das guenstigste kaufbare Upgrade (buyPolicy "cheapest_first");
 --   wiederholen, solange etwas moeglich ist.
 -- - range, capacity und sellFactor wie im Spiel: (base + Summe add) * Produkt mul der aktuellen Stufen.
--- - Der Lauf endet, wenn alle Zonen erreicht sind, maxMinutes erreicht ist oder kein Fortschritt moeglich ist.
+-- - Ziel (options.goal): "zones" (Standard) endet, wenn alle Zonen erreicht sind; "upgrades" spielt weiter, bis
+--   zusaetzlich alle Upgrade-Stufen gekauft sind; "prestige" (nur mit config.prestige) weiter, bis nach dem
+--   Ausgeben mindestens prestige.coinsRequired Coins da sind (erste Prestige-Moeglichkeit). Gesammelt wird nach
+--   der letzten Zone weiter in der hoechsten freien Zone.
+-- - Der Lauf endet ausserdem, wenn maxMinutes erreicht ist oder kein Fortschritt moeglich ist.
 local Schema = require(script.Parent.Schema)
 local Validator = require(script.Parent.Validator)
 
 export type Options = {
 	maxMinutes: number,
 	buyPolicy: string, -- "cheapest_first"
+	goal: string?, -- "zones" (Standard), "upgrades" oder "prestige"
 }
 
 export type TimelineEntry = {
@@ -32,6 +37,8 @@ export type Report = {
 	minutesToFirstUpgrade: number?,
 	minutesToZone: { [number]: number? },
 	reachedAllZones: boolean,
+	minutesToAllUpgrades: number?,
+	minutesToFirstPrestige: number?,
 	coinsAtEnd: number,
 	upgradeLevels: { [string]: number },
 	timeline: { TimelineEntry },
@@ -71,6 +78,9 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 		"Simulator: maxMinutes must be a finite number > 0"
 	)
 	assert(options.buyPolicy == "cheapest_first", "Simulator: unknown buyPolicy " .. tostring(options.buyPolicy))
+	local goal = options.goal or "zones"
+	assert(goal == "zones" or goal == "upgrades" or goal == "prestige", "Simulator: unknown goal " .. tostring(goal))
+	assert(goal ~= "prestige" or config.prestige ~= nil, "Simulator: goal prestige needs config.prestige")
 
 	local zoneOrder: { string } = {}
 	for zoneId in config.zones do
@@ -121,6 +131,8 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 	local firstSell: number? = nil
 	local firstUpgrade: number? = nil
 	local zoneTimes: { [number]: number? } = { [1] = 0 }
+	local allUpgrades: number? = nil
+	local firstPrestige: number? = nil
 	local timeline: { TimelineEntry } = { { minute = 0, event = "zone_unlock " .. zoneOrder[1] } }
 
 	-- Nach jedem Verkauf: erst Zone, sonst guenstigstes Upgrade, solange etwas moeglich ist.
@@ -168,9 +180,37 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 		end
 	end
 
+	local function upgradesDone(): boolean
+		for _, dimension in dimensions do
+			if levels[dimension] < #config.upgrades[dimension].levels then
+				return false
+			end
+		end
+		return true
+	end
+	-- Haelt Meilensteine fest und meldet, ob das Ziel erreicht ist.
+	local function reached(): boolean
+		local zonesDone = unlocked == #zoneOrder
+		if zonesDone and allUpgrades == nil and upgradesDone() then
+			allUpgrades = minutes(now)
+			table.insert(timeline, { minute = minutes(now), event = "all_upgrades" })
+		end
+		local prestige = config.prestige
+		if prestige ~= nil and firstPrestige == nil and coins >= prestige.coinsRequired then
+			firstPrestige = minutes(now)
+			table.insert(timeline, { minute = minutes(now), event = "prestige_ready" })
+		end
+		if goal == "zones" then
+			return zonesDone
+		elseif goal == "upgrades" then
+			return zonesDone and allUpgrades ~= nil
+		end
+		return firstPrestige ~= nil
+	end
+
 	spend()
 	local limitSeconds = options.maxMinutes * 60
-	while unlocked < #zoneOrder do
+	while not reached() do
 		local zoneId: string? = nil
 		for rank = unlocked, 1, -1 do
 			if config.zones[zoneOrder[rank]].density > 0 then
@@ -207,6 +247,8 @@ function Simulator.run(config: Schema.GameConfig, options: Options): Report
 		minutesToFirstUpgrade = firstUpgrade,
 		minutesToZone = zoneTimes,
 		reachedAllZones = unlocked == #zoneOrder,
+		minutesToAllUpgrades = allUpgrades,
+		minutesToFirstPrestige = firstPrestige,
 		coinsAtEnd = coins,
 		upgradeLevels = levels,
 		timeline = timeline,

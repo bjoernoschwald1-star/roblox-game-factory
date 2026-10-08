@@ -37,6 +37,7 @@ local SHAPE_STYLE = {
 	gear = { shape = "Cylinder", size = 1.8 },
 	bolt = { shape = "Block", size = 1.2 },
 	barrel = { shape = "Cylinder", size = 1.7 },
+	anchor = { shape = "Block", size = 1.6 },
 }
 
 -- Zone -> { { Form, Variante } }: gewoehnliche Teile plus je eine seltene, epische und legendaere Stufe.
@@ -61,6 +62,15 @@ local ZONE_ITEMS = {
 		{ "barrel", "chrome" },
 		{ "bolt", "gold" },
 		{ "pipe", "neon" },
+	},
+	-- Hafen: wertvollere bekannte Formen plus der Anker in allen vier Seltenheiten.
+	zone_d = {
+		{ "barrel", "rusty" },
+		{ "anchor", "rusty" },
+		{ "gear", "chrome" },
+		{ "anchor", "chrome" },
+		{ "anchor", "gold" },
+		{ "anchor", "neon" },
 	},
 }
 
@@ -94,8 +104,9 @@ local zones = {
 	zone_c = {
 		order = 3,
 		nameKey = "zone_c_name",
-		condition = { type = "upgradeLevel", dimension = "capacity", level = 2 },
+		condition = { type = "upgradeLevel", dimension = "capacity", level = 3 },
 	},
+	zone_d = { order = 4, nameKey = "zone_d_name", condition = { type = "purchase", cost = 28000 } },
 }
 
 local upgrades = {
@@ -104,7 +115,14 @@ local upgrades = {
 	sell_bonus = { nameKey = "upgrade_sell_bonus_name" },
 }
 
-local SHAPE_NAMES = { plate = "Blechplatte", pipe = "Rohrstück", gear = "Zahnrad", bolt = "Schraube", barrel = "Fass" }
+local SHAPE_NAMES = {
+	plate = "Blechplatte",
+	pipe = "Rohrstück",
+	gear = "Zahnrad",
+	bolt = "Schraube",
+	barrel = "Fass",
+	anchor = "Anker",
+}
 local VARIANT_NAMES = { rusty = "Rostige", chrome = "Chrom-", gold = "Gold-", neon = "Neon-" }
 
 local texts = {
@@ -115,6 +133,7 @@ local texts = {
 	zone_a_name = "Schrottfeld",
 	zone_b_name = "Autofriedhof",
 	zone_c_name = "Kranplatz",
+	zone_d_name = "Hafen",
 	upgrade_range_name = "Magnet-Reichweite",
 	upgrade_capacity_name = "Ladefläche",
 	upgrade_sell_bonus_name = "Händlerbonus",
@@ -132,6 +151,15 @@ local texts = {
 	hud_collect = "Magnet",
 	hud_sell = "Verkauf",
 	hud_upgrades = "Upgrades",
+	-- Schmelze (Prestige im Kern): ab der Schwelle Neustart gegen dauerhaften Verkaufsmultiplikator.
+	hud_prestige = "Schmelze",
+	prestige_title = "Alles einschmelzen?",
+	prestige_lose = "Du verlierst: alle Münzen, Upgrades und Bereiche.",
+	prestige_gain = "Du bekommst dauerhaft ×{multiplier} auf jeden Verkauf.",
+	prestige_confirm = "Einschmelzen",
+	prestige_cancel = "Abbrechen",
+	feedback_prestiged = "Eingeschmolzen! Verkauf ×{multiplier}",
+	decimal_separator = ",",
 	hint_full = "Ladefläche voll! Folge dem Strahl zur Waage.",
 	onboarding_collect = "Lauf zum Schrott und zieh ihn mit dem Magneten an.",
 	onboarding_sell = "Bring die Ladung zur Waage und verkaufe sie.",
@@ -226,6 +254,7 @@ local effects = {
 	unlocked = { textKey = "feedback_unlocked", color = PALETTE.olive_green },
 	full = { textKey = "feedback_full", color = PALETTE.magnet_red },
 	found = { textKey = "feedback_found", color = PALETTE.neon_pink },
+	prestiged = { textKey = "feedback_prestiged", color = PALETTE.rust_orange },
 	-- Nur kostenlose Sounds des Erstellers "Roblox" aus dem Creator Store (im Spieltest geladen, Laenge in Sekunden).
 	sounds = {
 		collected = "rbxassetid://12221990", -- electronicpingshort.wav (Roblox), 0,46 s: Einsammeln
@@ -233,6 +262,7 @@ local effects = {
 		upgraded = "rbxassetid://10066947742", -- RBLX UI Purchase (SFX) (Roblox), 0,87 s: Upgrade gekauft
 		unlocked = "rbxassetid://12222253", -- victory.wav (Roblox), 1,21 s: Zone freigeschaltet
 		found = "rbxassetid://15675043410", -- Roblox_UI_Tonal_Stinger (Roblox), 1,47 s: seltener Fund
+		prestiged = "rbxassetid://15675024286", -- Roblox_UI_Whoosh_01 (Roblox): Schmelze
 	},
 }
 

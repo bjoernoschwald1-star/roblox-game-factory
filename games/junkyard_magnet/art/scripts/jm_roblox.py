@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mathutils import Matrix, Vector  # noqa: E402
 
+import item_anchor  # noqa: E402
 import item_barrel  # noqa: E402
 import item_bolt  # noqa: E402
 import item_gear  # noqa: E402
@@ -29,17 +30,26 @@ import jm_common as jm  # noqa: E402
 import prop_car_wreck  # noqa: E402
 import prop_container  # noqa: E402
 import prop_fence  # noqa: E402
+import prop_furnace  # noqa: E402
 import prop_ground  # noqa: E402
 import prop_magnet_crane  # noqa: E402
 import prop_scrap_pile  # noqa: E402
 import prop_sell_station  # noqa: E402
+import prop_shipwreck  # noqa: E402
 import prop_tire_stack  # noqa: E402
 import tool_magnet  # noqa: E402
 
 OUT = jm.REPO_ROOT / "games" / "junkyard_magnet" / "server" / "PropShapes.luau"
 ITEM_OUT = jm.REPO_ROOT / "games" / "junkyard_magnet" / "shared" / "ItemShapes.luau"
 ITEM_SCALE = 1.4
-ITEMS = {"plate": item_plate, "pipe": item_pipe, "gear": item_gear, "bolt": item_bolt, "barrel": item_barrel}
+ITEMS = {
+    "plate": item_plate,
+    "pipe": item_pipe,
+    "gear": item_gear,
+    "bolt": item_bolt,
+    "barrel": item_barrel,
+    "anchor": item_anchor,
+}
 C = Matrix(((1, 0, 0), (0, 0, 1), (0, -1, 0)))
 
 PROPS = {
@@ -51,6 +61,8 @@ PROPS = {
     "prop_sell_station": prop_sell_station.add,
     "prop_scrap_pile": prop_scrap_pile.add,
     "prop_container": prop_container.add,
+    "prop_furnace": prop_furnace.add,
+    "prop_shipwreck": prop_shipwreck.add,
     "tool_magnet": tool_magnet.add,
     # Fass-Gruppen in verschiedenen Lackfarben (Kulisse)
     "deco_barrel_red": lambda b: item_barrel.add(b, "red"),

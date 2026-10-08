@@ -18,7 +18,7 @@ export type ZoneArea = { center: Vector3, size: Vector3 }
 Ground.EXTENT = 1600 -- Kantenlaenge der Sandflaeche (bis hinter die Fabrik-Silhouette; weiter zeichnet Roblox nicht)
 Ground.DEPTH = 8
 Ground.TOP = -2 -- Oberkante der Fuellung; ergibt im Spieltest eine Oberflaeche bei etwa y 0
-Ground.ZONE_MATERIALS = { Enum.Material.Ground, Enum.Material.Asphalt, Enum.Material.Pavement }
+Ground.ZONE_MATERIALS = { Enum.Material.Ground, Enum.Material.Asphalt, Enum.Material.Pavement, Enum.Material.Slate }
 
 local SEED = 71
 local PAINT_REACH = 220 -- so weit ausserhalb des Zauns werden Flecken gemalt
@@ -27,6 +27,7 @@ local COLORS: { [Enum.Material]: Color3 } = {
 	[Enum.Material.Ground] = Color3.fromHex("#B07A4E"),
 	[Enum.Material.Asphalt] = Color3.fromHex("#5A5652"),
 	[Enum.Material.Pavement] = Color3.fromHex("#C9BBA2"),
+	[Enum.Material.Slate] = Color3.fromHex("#5C7186"), -- Hafen: nasser, blaugrauer Kai
 	[Enum.Material.Grass] = Color3.fromHex("#7A9E3E"),
 }
 

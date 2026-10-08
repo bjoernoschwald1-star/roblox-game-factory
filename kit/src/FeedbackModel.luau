@@ -1,6 +1,8 @@
 --!strict
 -- Reine Logik des Feedbacks: vergleicht zwei aufeinanderfolgende Schnappschuesse und liefert Ereignisse
--- { collected = n, earned = coins, upgraded = dimension, unlocked = zoneId, full = true }. Nur vorhandene
+-- { collected = n, earned = coins, upgraded = dimension, unlocked = zoneId, full = true, prestiged = Stufe,
+-- prestigeMultiplier = neuer Faktor }. Nach einem Prestige meldet compare nur prestiged (der Rueckbau von Coins,
+-- Upgrades und Zonen ist kein eigenes Ereignis). Nur vorhandene
 -- Ereignisse stehen in der Tabelle; gleiche Schnappschuesse ergeben eine leere Tabelle. Welche Darstellung zu
 -- welchem Ereignis gehoert, legt die Effekt-Tabelle des Games fest (Erweiterungspunkt Feedback-Profil).
 -- Seltenheit (optional rarities = { [itemTypeId] = "common" | "rare" | "epic" | "legendary" }): found ist der neu
@@ -16,6 +18,8 @@ export type Events = {
 	full: boolean?,
 	found: string?,
 	foundRarity: string?,
+	prestiged: number?,
+	prestigeMultiplier: number?,
 }
 
 local RARITY_RANK: { [string]: number } = { common = 1, rare = 2, epic = 3, legendary = 4 }
@@ -72,6 +76,12 @@ end
 function FeedbackModel.compare(old: any, new: any, rarities: { [string]: string }?): Events
 	local events: Events = {}
 	if old == nil or new == nil then
+		return events
+	end
+	local oldPrestige, newPrestige = old.prestige, new.prestige
+	if type(oldPrestige) == "table" and type(newPrestige) == "table" and newPrestige.level > oldPrestige.level then
+		events.prestiged = newPrestige.level
+		events.prestigeMultiplier = newPrestige.multiplier
 		return events
 	end
 	if new.inventoryCount > old.inventoryCount then

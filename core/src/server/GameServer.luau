@@ -7,7 +7,9 @@
 -- Meldungen). Die Config wird kopiert und nie veraendert.
 --
 -- Remotes (fest): collect() ohne Argumente (Position kommt vom Server ueber services.getPosition, nie vom
--- Client), sell(), buyUpgrade(dimension), unlockZone(zoneId). Rate Limits aus config.remotes.
+-- Client), sell(), buyUpgrade(dimension), unlockZone(zoneId), prestige(). Rate Limits aus config.remotes.
+-- prestige wirkt nur mit config.prestige (sonst ignoriert): Reset ueber Prestige, danach werden die Items des
+-- Spielers neu verteilt (nur freie Zonen) und das Profil sofort gespeichert (Fehler: Autosave holt nach).
 -- Analytics: onCollected -> first_collect, collect mit FULL -> inventory_full, onSold -> first_sell,
 -- onUpgraded -> first_upgrade, onUnlocked -> zone_unlock (zoneIndex = Rang nach order, Startzone = 1),
 -- onPurchase -> purchase_success (role).
@@ -22,6 +24,7 @@ local Modifiers = require(script.Parent.Modifiers)
 local Monetization = require(script.Parent.Monetization)
 local PlayerContext = require(script.Parent.Parent.shared.PlayerContext)
 local PlayerSession = require(script.Parent.PlayerSession)
+local Prestige = require(script.Parent.Prestige)
 local ProfileStore = require(script.Parent.ProfileStore)
 local Radius = require(script.Parent.CollectTypes.Radius)
 local RemoteGateway = require(script.Parent.RemoteGateway)
@@ -68,6 +71,7 @@ export type Modules = {
 	monetization: Monetization.Monetization,
 	analytics: Analytics.Analytics,
 	gateway: RemoteGateway.RemoteGateway,
+	prestige: Prestige.Prestige?,
 }
 
 export type Game = {
@@ -140,6 +144,7 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 				purchases = {},
 				perks = {},
 				funnel = {},
+				prestige = 0,
 			}
 		end,
 		schemaVersion = config.game.schemaVersion,
@@ -256,6 +261,19 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 	})
 	modifiers:registerSource("passes", monetization:modifierSource())
 
+	local prestige: Prestige.Prestige? = nil
+	if config.prestige ~= nil then
+		local created = Prestige.new({
+			getProfile = getProfile,
+			economy = economy,
+			coinsRequired = config.prestige.coinsRequired,
+			sellBonusPerLevel = config.prestige.sellBonusPerLevel,
+			startCoins = config.game.startCoins,
+		})
+		modifiers:registerSource("prestige", created:modifierSource())
+		prestige = created
+	end
+
 	local gateway = RemoteGateway.new({ clock = services.clock, log = log })
 	local function limit(name: string): RemoteGateway.RateLimit
 		local remote = config.remotes[name]
@@ -310,6 +328,26 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 			zones:tryUnlock(ctx, zoneId)
 		end,
 	})
+	gateway:register("prestige", {
+		args = {},
+		rateLimit = limit("prestige"),
+		handler = function(ctx)
+			if prestige == nil then
+				return
+			end
+			local ok, err = prestige:reset(ctx)
+			if not ok then
+				return
+			end
+			-- Items in nun gesperrten Zonen verschwinden; neu verteilt wird nur in freien Zonen.
+			collecting:stopPlayer(ctx)
+			collecting:startPlayer(ctx)
+			local saved, saveErr = session:save(ctx)
+			if not saved then
+				log:warnThrottled("prestige_save", "[GameServer] prestige save failed: " .. tostring(saveErr or err))
+			end
+		end,
+	})
 	gateway:seal()
 
 	-- Aktive Spieler (erfolgreich geladen) fuer refillAll und shutdown.
@@ -325,6 +363,7 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 				upgrades = upgrades,
 				zones = zones,
 				collecting = collecting,
+				prestige = prestige,
 			},
 			config = config,
 			send = services.sendState,
@@ -436,6 +475,7 @@ function GameServer.compose(sourceConfig: Schema.GameConfig, services: Services)
 			monetization = monetization,
 			analytics = analytics,
 			gateway = gateway,
+			prestige = prestige,
 		},
 	}
 	return composed
