@@ -1,0 +1,51 @@
+{
+  "name": "game002-probe",
+  "globIgnorePaths": ["core/src/testing/**"],
+  "tree": {
+    "$className": "DataModel",
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "LightingStyle": "Realistic",
+        "PrioritizeLightingQuality": true,
+        "Technology": "Future"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "FactoryCore": {
+        "$path": "core/src"
+      },
+      "Game002Server": {
+        "$path": "games/game_002/server"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "Game002Surfaces": {
+        "$path": "games/game_002/surfaces"
+      }
+    },
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "FactoryClient": {
+        "$path": "core/client"
+      },
+      "FactoryKit": {
+        "$path": "kit/src"
+      },
+      "Game002Shared": {
+        "$path": "games/game_002/shared"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Game002Client": {
+          "$path": "games/game_002/client"
+        }
+      }
+    }
+  }
+}

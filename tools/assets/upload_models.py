@@ -1,7 +1,11 @@
-"""Laedt Modelle (.fbx) ueber die Open Cloud Assets API hoch und schreibt das Ergebnis in eine Lock-Datei.
+"""Laedt Modelle (.fbx) und Bilder (.png) ueber die Open Cloud Assets API hoch und schreibt das Ergebnis in eine
+Lock-Datei.
 
 Ablauf je Datei: POST /assets/v1/assets (multipart) -> Operation pollen -> Moderationsstatus lesen ->
-Eintrag (Dateiname, Asset-ID, Status) in games/junkyard_magnet/art/assets.lock.json.
+Eintrag (Dateiname, Asset-ID, Status) in die Lock-Datei (Standard games/junkyard_magnet/art/assets.lock.json).
+Asset-Typ nach Endung: .fbx -> "Model" (model/fbx), .png -> "Image" (image/png). Fuer Bilder wird der
+zurueckgemeldete Asset-Typ geprueft: SurfaceAppearance braucht eine Bild-ID; kommt etwas anderes zurueck (z. B.
+"Decal"), wird gestoppt, weil die Doku keinen Weg von der Decal-ID zur Bild-ID beschreibt.
 Schluessel: ROBLOX_ASSETS_API_KEY und ROBLOX_ASSETS_CREATOR_USER_ID aus der Umgebung bzw. .env (gleiche
 Lade-Logik wie tools/spike/_common.py). Schluesselwerte werden nie ausgegeben oder gespeichert.
 Stopp-Regeln: 401/403 -> sofort Abbruch (Exit 3); Moderation lehnt ab -> keine weiteren Uploads (Exit 4).
@@ -9,6 +13,7 @@ Doku: https://create.roblox.com/docs/cloud/guides/usage-assets
 
 Aufruf: python tools/assets/upload_models.py            (Pilot-Auswahl, hoechstens 13 Dateien)
         python tools/assets/upload_models.py a.fbx b.fbx
+        python tools/assets/upload_models.py --lock games/game_002/art/assets.lock.json --description "..." x.png
 Offene Punkte: Moderation kann laenger als das Warte-Limit dauern; dann bleibt der Status "Reviewing".
 """
 
@@ -33,6 +38,13 @@ KEY_VAR = "ROBLOX_ASSETS_API_KEY"
 CREATOR_VAR = "ROBLOX_ASSETS_CREATOR_USER_ID"
 MAX_UPLOADS = 13
 MAX_BYTES = 20 * 1024 * 1024
+DEFAULT_DESCRIPTION = "Junkyard Magnet art pilot"
+
+# Endung -> (assetType, Content-Type der Datei); Doku: usage-assets, Tabelle der Asset-Typen
+FILE_KINDS = {
+    ".fbx": ("Model", "model/fbx"),
+    ".png": ("Image", "image/png"),
+}
 
 PILOT_FILES = [
     *(f"item_{shape}_{rarity}.fbx" for shape in ("plate", "pipe", "gear", "bolt", "barrel") for rarity in ("rusty", "gold")),
@@ -124,12 +136,21 @@ class Client:
         raise AssertionError("unreachable")
 
 
-def multipart(request_json: dict, file_name: str, file_bytes: bytes, boundary: str) -> tuple[bytes, str]:
+def file_kind(path: Path) -> tuple[str, str]:
+    kind = FILE_KINDS.get(path.suffix.lower())
+    if kind is None:
+        raise UploadStop(f"{path.name}: Endung {path.suffix} wird nicht unterstuetzt ({', '.join(FILE_KINDS)}).",
+                         EXIT_INFRA)
+    return kind
+
+
+def multipart(request_json: dict, file_name: str, file_bytes: bytes, boundary: str,
+              file_type: str = "model/fbx") -> tuple[bytes, str]:
     parts = [
         f"--{boundary}\r\nContent-Disposition: form-data; name=\"request\"\r\n"
         f"Content-Type: application/json\r\n\r\n{json.dumps(request_json)}\r\n".encode(),
         f"--{boundary}\r\nContent-Disposition: form-data; name=\"fileContent\"; filename=\"{file_name}\"\r\n"
-        f"Content-Type: model/fbx\r\n\r\n".encode() + file_bytes + b"\r\n",
+        f"Content-Type: {file_type}\r\n\r\n".encode() + file_bytes + b"\r\n",
         f"--{boundary}--\r\n".encode(),
     ]
     return b"".join(parts), f"multipart/form-data; boundary={boundary}"
@@ -163,22 +184,34 @@ def moderation_state(client: Client, asset_id: str, poll_seconds: float = 5.0, m
     return state
 
 
-def upload_one(client: Client, path: Path, creator_id: str, boundary: str | None = None) -> dict:
+def upload_one(client: Client, path: Path, creator_id: str, boundary: str | None = None,
+               description: str = DEFAULT_DESCRIPTION) -> dict:
+    asset_type, file_type = file_kind(path)
     data = path.read_bytes()
     if len(data) > MAX_BYTES:
         raise UploadStop(f"{path.name} ist groesser als 20 MB.", EXIT_INFRA)
     request_json = {
-        "assetType": "Model",
+        "assetType": asset_type,
         "displayName": path.stem,
-        "description": "Junkyard Magnet art pilot",
+        "description": description,
         "creationContext": {"creator": {"userId": str(creator_id)}},
     }
-    body, content_type = multipart(request_json, path.name, data, boundary or uuid.uuid4().hex)
+    body, content_type = multipart(request_json, path.name, data, boundary or uuid.uuid4().hex, file_type)
     operation = client.call("POST", f"{API}/assets", body=body, content_type=content_type)
     response = wait_operation(client, operation)
     asset_id = str(response.get("assetId") or "")
     if not asset_id:
         raise UploadStop(f"{path.name}: keine assetId in der Antwort.", EXIT_INFRA)
+    if asset_type == "Image":
+        returned = response.get("assetType") or client.call(
+            "GET", f"{API}/assets/{asset_id}?readMask=assetType"
+        ).get("assetType")
+        if returned != "Image":
+            raise UploadStop(
+                f"STOPP: {path.name} kam als Asset-Typ {returned!r} zurueck (Asset {asset_id}), nicht als Bild-ID; "
+                "die Doku beschreibt keinen Weg zur Bild-ID.",
+                EXIT_INFRA,
+            )
     return {"file": path.name, "assetId": asset_id, "status": moderation_state(client, asset_id)}
 
 
@@ -192,13 +225,14 @@ def write_lock(entries: list[dict], lock_file: Path = LOCK_FILE) -> None:
     lock_file.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def run(files: list[Path], client: Client, creator_id: str, lock_file: Path = LOCK_FILE) -> int:
+def run(files: list[Path], client: Client, creator_id: str, lock_file: Path = LOCK_FILE,
+        description: str = DEFAULT_DESCRIPTION) -> int:
     if len(files) > MAX_UPLOADS:
         raise UploadStop(f"{len(files)} Dateien > Pilot-Grenze {MAX_UPLOADS}.", EXIT_INFRA)
     done: list[dict] = []
     try:
         for path in files:
-            entry = upload_one(client, path, creator_id)
+            entry = upload_one(client, path, creator_id, description=description)
             done.append(entry)
             print(f"{entry['file']}: asset {entry['assetId']} {entry['status']}")
             if entry["status"] == "Rejected":
@@ -210,16 +244,38 @@ def run(files: list[Path], client: Client, creator_id: str, lock_file: Path = LO
     return 0
 
 
+def parse_args(argv: list[str]) -> tuple[list[Path], Path, str]:
+    """--lock <Pfad> und --description <Text> sind optional; alles andere sind Dateien."""
+    lock_file, description, names = LOCK_FILE, DEFAULT_DESCRIPTION, []
+    rest = list(argv)
+    while rest:
+        arg = rest.pop(0)
+        if arg in ("--lock", "--description"):
+            if not rest:
+                raise UploadStop(f"{arg} braucht einen Wert.", EXIT_INFRA)
+            value = rest.pop(0)
+            if arg == "--lock":
+                lock_file = Path(value).resolve()
+            else:
+                description = value
+        else:
+            names.append(arg)
+    files = [Path(a).resolve() for a in names] or [EXPORT_DIR / name for name in PILOT_FILES]
+    return files, lock_file, description
+
+
 def main(argv: list[str]) -> int:
-    files = [Path(a).resolve() for a in argv] or [EXPORT_DIR / name for name in PILOT_FILES]
-    missing = [p.name for p in files if not p.is_file()]
     try:
+        files, lock_file, description = parse_args(argv)
+        missing = [p.name for p in files if not p.is_file()]
         if missing:
             raise UploadStop(f"Dateien fehlen: {', '.join(missing)}", EXIT_INFRA)
+        for path in files:
+            file_kind(path)
         key, creator = load_config()
         client = Client(key)
         try:
-            return run(files, client, creator)
+            return run(files, client, creator, lock_file, description)
         except UploadStop as stop:
             stop.args = (client.redact(str(stop)),)
             raise

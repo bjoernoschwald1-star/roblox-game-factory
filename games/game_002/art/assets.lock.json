@@ -1,0 +1,504 @@
+{
+  "assets": [
+    {
+      "file": "station_artifact.fbx",
+      "assetId": "109988492834197",
+      "status": "Approved"
+    },
+    {
+      "file": "station_artifact_color.png",
+      "assetId": "113997065633541",
+      "status": "Approved"
+    },
+    {
+      "file": "station_artifact_metalness.png",
+      "assetId": "103136510730352",
+      "status": "Approved"
+    },
+    {
+      "file": "station_artifact_normal.png",
+      "assetId": "70638230012933",
+      "status": "Approved"
+    },
+    {
+      "file": "station_artifact_roughness.png",
+      "assetId": "139831846415439",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cable_bundle.fbx",
+      "assetId": "117987857085055",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cable_bundle_color.png",
+      "assetId": "118607210063582",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cable_bundle_metalness.png",
+      "assetId": "87387770323042",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cable_bundle_normal.png",
+      "assetId": "84122072089192",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cable_bundle_roughness.png",
+      "assetId": "94642793260188",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cart.fbx",
+      "assetId": "99537771428579",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cart_color.png",
+      "assetId": "135521313378384",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cart_metalness.png",
+      "assetId": "124394710868631",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cart_normal.png",
+      "assetId": "81653171188479",
+      "status": "Approved"
+    },
+    {
+      "file": "station_cart_roughness.png",
+      "assetId": "124335810799788",
+      "status": "Approved"
+    },
+    {
+      "file": "station_ceiling_pipes.fbx",
+      "assetId": "105214332739987",
+      "status": "Approved"
+    },
+    {
+      "file": "station_ceiling_pipes_color.png",
+      "assetId": "78979684697061",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_ceiling_pipes_color_r2.png",
+      "assetId": "85102744951521",
+      "status": "Approved"
+    },
+    {
+      "file": "station_ceiling_pipes_metalness.png",
+      "assetId": "75072344597666",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_ceiling_pipes_metalness_r2.png",
+      "assetId": "132203351906230",
+      "status": "Approved"
+    },
+    {
+      "file": "station_ceiling_pipes_normal.png",
+      "assetId": "135790107539797",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_ceiling_pipes_normal_r2.png",
+      "assetId": "102665089311755",
+      "status": "Approved"
+    },
+    {
+      "file": "station_ceiling_pipes_roughness.png",
+      "assetId": "120903277801682",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_ceiling_pipes_roughness_r2.png",
+      "assetId": "108388881777275",
+      "status": "Approved"
+    },
+    {
+      "file": "station_console.fbx",
+      "assetId": "130872657250256",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_console_color.png",
+      "assetId": "74869361570259",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_console_color_r2.png",
+      "assetId": "86220594228148",
+      "status": "Approved"
+    },
+    {
+      "file": "station_console_metalness.png",
+      "assetId": "91866548436765",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_console_metalness_r2.png",
+      "assetId": "108678017381241",
+      "status": "Approved"
+    },
+    {
+      "file": "station_console_normal.png",
+      "assetId": "135601581514208",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_console_normal_r2.png",
+      "assetId": "71787077774950",
+      "status": "Approved"
+    },
+    {
+      "file": "station_console_r2.fbx",
+      "assetId": "105699278788496",
+      "status": "Approved"
+    },
+    {
+      "file": "station_console_roughness.png",
+      "assetId": "116088680629389",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_console_roughness_r2.png",
+      "assetId": "99112143683378",
+      "status": "Approved"
+    },
+    {
+      "file": "station_crate.fbx",
+      "assetId": "76705903894566",
+      "status": "Approved"
+    },
+    {
+      "file": "station_crate_color.png",
+      "assetId": "94722860000103",
+      "status": "Approved"
+    },
+    {
+      "file": "station_crate_metalness.png",
+      "assetId": "71179921373091",
+      "status": "Approved"
+    },
+    {
+      "file": "station_crate_normal.png",
+      "assetId": "139319452181171",
+      "status": "Approved"
+    },
+    {
+      "file": "station_crate_roughness.png",
+      "assetId": "84285497240847",
+      "status": "Approved"
+    },
+    {
+      "file": "station_door.fbx",
+      "assetId": "88061940106797",
+      "status": "Approved"
+    },
+    {
+      "file": "station_door_color.png",
+      "assetId": "83571655780084",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_door_color_r2.png",
+      "assetId": "76385595926254",
+      "status": "Approved"
+    },
+    {
+      "file": "station_door_metalness.png",
+      "assetId": "87765873944027",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_door_metalness_r2.png",
+      "assetId": "120169194921226",
+      "status": "Approved"
+    },
+    {
+      "file": "station_door_normal.png",
+      "assetId": "130736775960801",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_door_normal_r2.png",
+      "assetId": "85714618939966",
+      "status": "Approved"
+    },
+    {
+      "file": "station_door_roughness.png",
+      "assetId": "128103803061908",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_door_roughness_r2.png",
+      "assetId": "109451003359355",
+      "status": "Approved"
+    },
+    {
+      "file": "station_drone.fbx",
+      "assetId": "90504059913048",
+      "status": "Approved"
+    },
+    {
+      "file": "station_drone_color.png",
+      "assetId": "115911856754780",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_drone_color_r2.png",
+      "assetId": "101841170045258",
+      "status": "Approved"
+    },
+    {
+      "file": "station_drone_metalness.png",
+      "assetId": "108103132254773",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_drone_metalness_r2.png",
+      "assetId": "90555443249243",
+      "status": "Approved"
+    },
+    {
+      "file": "station_drone_normal.png",
+      "assetId": "139701027412117",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_drone_normal_r2.png",
+      "assetId": "123050268637330",
+      "status": "Approved"
+    },
+    {
+      "file": "station_drone_roughness.png",
+      "assetId": "114894539312296",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_drone_roughness_r2.png",
+      "assetId": "132053292976181",
+      "status": "Approved"
+    },
+    {
+      "file": "station_floor_plate.fbx",
+      "assetId": "76203368781429",
+      "status": "Approved"
+    },
+    {
+      "file": "station_floor_plate_color.png",
+      "assetId": "89497945757126",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_floor_plate_color_r2.png",
+      "assetId": "113160133756824",
+      "status": "Approved"
+    },
+    {
+      "file": "station_floor_plate_metalness.png",
+      "assetId": "140347482774091",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_floor_plate_metalness_r2.png",
+      "assetId": "109574747895215",
+      "status": "Approved"
+    },
+    {
+      "file": "station_floor_plate_normal.png",
+      "assetId": "74065259243729",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_floor_plate_normal_r2.png",
+      "assetId": "134438030255888",
+      "status": "Approved"
+    },
+    {
+      "file": "station_floor_plate_roughness.png",
+      "assetId": "78638899611608",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_floor_plate_roughness_r2.png",
+      "assetId": "110192154024617",
+      "status": "Approved"
+    },
+    {
+      "file": "station_puddle.fbx",
+      "assetId": "118066895312465",
+      "status": "Approved"
+    },
+    {
+      "file": "station_puddle_color.png",
+      "assetId": "103931963745890",
+      "status": "Approved"
+    },
+    {
+      "file": "station_puddle_metalness.png",
+      "assetId": "127034381848143",
+      "status": "Approved"
+    },
+    {
+      "file": "station_puddle_normal.png",
+      "assetId": "131422746885089",
+      "status": "Approved"
+    },
+    {
+      "file": "station_puddle_roughness.png",
+      "assetId": "108370528126546",
+      "status": "Approved"
+    },
+    {
+      "file": "station_vent.fbx",
+      "assetId": "83530119581654",
+      "status": "Approved"
+    },
+    {
+      "file": "station_vent_color.png",
+      "assetId": "109001260358910",
+      "status": "Approved"
+    },
+    {
+      "file": "station_vent_metalness.png",
+      "assetId": "93020064253715",
+      "status": "Approved"
+    },
+    {
+      "file": "station_vent_normal.png",
+      "assetId": "71531248990161",
+      "status": "Approved"
+    },
+    {
+      "file": "station_vent_roughness.png",
+      "assetId": "126173634863942",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_damaged.fbx",
+      "assetId": "125855691314595",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_damaged_color.png",
+      "assetId": "87317850137652",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_damaged_metalness.png",
+      "assetId": "92409895457363",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_damaged_normal.png",
+      "assetId": "109092575831975",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_damaged_roughness.png",
+      "assetId": "83774494391344",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_panel.fbx",
+      "assetId": "137035667660781",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_panel_color.png",
+      "assetId": "71557814773497",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_wall_panel_color_r2.png",
+      "assetId": "104647810159240",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_panel_metalness.png",
+      "assetId": "124847057887367",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_wall_panel_metalness_r2.png",
+      "assetId": "75592220131971",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_panel_normal.png",
+      "assetId": "109481676004717",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_wall_panel_normal_r2.png",
+      "assetId": "80694591727381",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_panel_roughness.png",
+      "assetId": "100828126358711",
+      "status": "Replaced"
+    },
+    {
+      "file": "station_wall_panel_roughness_r2.png",
+      "assetId": "118056660915311",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_window.fbx",
+      "assetId": "104041365137226",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_window_color.png",
+      "assetId": "83311329441600",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_window_metalness.png",
+      "assetId": "88500674485326",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_window_normal.png",
+      "assetId": "132563790419522",
+      "status": "Approved"
+    },
+    {
+      "file": "station_wall_window_roughness.png",
+      "assetId": "101585095961363",
+      "status": "Approved"
+    },
+    {
+      "file": "station_warning_sign.fbx",
+      "assetId": "73542139150766",
+      "status": "Approved"
+    },
+    {
+      "file": "station_warning_sign_color.png",
+      "assetId": "125832366725407",
+      "status": "Approved"
+    },
+    {
+      "file": "station_warning_sign_metalness.png",
+      "assetId": "137736496649131",
+      "status": "Approved"
+    },
+    {
+      "file": "station_warning_sign_normal.png",
+      "assetId": "115736956760284",
+      "status": "Approved"
+    },
+    {
+      "file": "station_warning_sign_roughness.png",
+      "assetId": "109584171705321",
+      "status": "Approved"
+    }
+  ]
+}

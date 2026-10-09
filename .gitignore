@@ -4,3 +4,6 @@ build/
 *.rbxlx
 __pycache__/
 .claude/settings.local.json
+# Game #002: erzeugte Binaerdateien (Blender-Skripte unter games/game_002/art/scripts/), siehe games/game_002/art/README.md
+games/game_002/art/textures/
+games/game_002/art/export/

@@ -32,8 +32,12 @@ class FakeResponse:
 class FakeRoblox:
     """Antwortet je nach URL; moderation ist die Folge der Moderationszustaende je Asset."""
 
-    def __init__(self, moderation=("Approved",), fail_status=None, op_polls=1):
+    def __init__(self, moderation=("Approved",), fail_status=None, op_polls=1, returned_type=None,
+                 type_in_operation=True):
         self.moderation = list(moderation)
+        self.returned_type = returned_type
+        self.type_in_operation = type_in_operation
+        self.bodies: list[bytes] = []
         self.fail_status = fail_status
         self.op_polls = op_polls
         self.calls: list[tuple[str, str, dict]] = []
@@ -47,6 +51,7 @@ class FakeRoblox:
             raise urllib.error.HTTPError(req.full_url, self.fail_status, "x", {},
                                          io.BytesIO(f"denied for {KEY}".encode()))
         if req.get_method() == "POST":
+            self.bodies.append(req.data)
             self.next_asset += 1
             op_id = f"op{self.next_asset}"
             self.pending[op_id] = self.op_polls
@@ -56,10 +61,22 @@ class FakeRoblox:
             self.pending[op_id] -= 1
             if self.pending[op_id] > 0:
                 return FakeResponse({"path": f"operations/{op_id}", "done": False})
-            return FakeResponse({"path": f"operations/{op_id}", "done": True,
-                                 "response": {"assetId": op_id.removeprefix("op"), "assetType": "Model"}})
+            response = {"assetId": op_id.removeprefix("op")}
+            if self.type_in_operation:
+                response["assetType"] = self.returned_type or self._requested_type()
+            return FakeResponse({"path": f"operations/{op_id}", "done": True, "response": response})
+        if "readMask=assetType" in req.full_url:
+            return FakeResponse({"assetId": "x", "assetType": self.returned_type or self._requested_type()})
         state = self.moderation.pop(0) if len(self.moderation) > 1 else self.moderation[0]
         return FakeResponse({"assetId": "x", "moderationResult": {"moderationState": state}})
+
+
+    def _requested_type(self) -> str:
+        """assetType aus dem JSON-Teil des letzten Multipart-Bodys."""
+        body = self.bodies[-1]
+        start = body.index(b"\r\n\r\n") + 4
+        end = body.index(b"\r\n", start)
+        return json.loads(body[start:end].decode())["assetType"]
 
 
 class UploadModelsTest(unittest.TestCase):
@@ -152,6 +169,63 @@ class UploadModelsTest(unittest.TestCase):
         entries = json.loads(self.lock.read_text(encoding="utf-8"))["assets"]
         self.assertEqual([e["file"] for e in entries], ["a.fbx", "z.fbx"])
         self.assertNotIn("extra", entries[0])
+
+    def make_png(self, name="tex_color.png"):
+        path = self.dir / name
+        path.write_bytes(b"PNG-DATA")
+        return path
+
+    def test_png_uploads_as_image_with_png_content_type(self):
+        fake = FakeRoblox()
+        png = self.make_png()
+        code = um.run([png], self.client(fake), "42", self.lock, description="Game 002 probe")
+        self.assertEqual(code, 0)
+        body = fake.bodies[0]
+        self.assertIn(b'"assetType": "Image"', body)
+        self.assertIn(b'"description": "Game 002 probe"', body)
+        self.assertIn(b'filename="tex_color.png"\r\nContent-Type: image/png\r\n', body)
+        entries = json.loads(self.lock.read_text(encoding="utf-8"))["assets"]
+        self.assertEqual(entries, [{"file": "tex_color.png", "assetId": "1001", "status": "Approved"}])
+
+    def test_fbx_still_uploads_as_model(self):
+        fake = FakeRoblox()
+        um.run(self.files[:1], self.client(fake), "42", self.lock)
+        self.assertIn(b'"assetType": "Model"', fake.bodies[0])
+        self.assertIn(b"Content-Type: model/fbx\r\n", fake.bodies[0])
+        self.assertIn(b'"description": "Junkyard Magnet art pilot"', fake.bodies[0])
+
+    def test_png_returned_as_decal_stops(self):
+        fake = FakeRoblox(returned_type="Decal")
+        with self.assertRaises(um.UploadStop) as ctx:
+            um.run([self.make_png("a.png"), self.make_png("b.png")], self.client(fake), "42", self.lock)
+        self.assertIn("Decal", str(ctx.exception))
+        self.assertEqual(sum(1 for c in fake.calls if c[0] == "POST"), 1)
+        self.assertFalse(self.lock.exists())
+
+    def test_png_type_read_from_asset_when_operation_omits_it(self):
+        fake = FakeRoblox(type_in_operation=False)
+        um.run([self.make_png()], self.client(fake), "42", self.lock)
+        self.assertTrue(any("readMask=assetType" in c[1] for c in fake.calls))
+
+    def test_unsupported_extension_stops_before_upload(self):
+        path = self.dir / "a.jpg"
+        path.write_bytes(b"JPG")
+        fake = FakeRoblox()
+        with self.assertRaises(um.UploadStop):
+            um.run([path], self.client(fake), "42", self.lock)
+        self.assertEqual(fake.calls, [])
+
+    def test_parse_args_lock_and_description(self):
+        png = self.make_png()
+        files, lock, description = um.parse_args(["--lock", str(self.lock), "--description", "Probe", str(png)])
+        self.assertEqual(files, [png.resolve()])
+        self.assertEqual(lock, self.lock.resolve())
+        self.assertEqual(description, "Probe")
+        files, lock, description = um.parse_args([])
+        self.assertEqual(lock, um.LOCK_FILE)
+        self.assertEqual(len(files), 13)
+        with self.assertRaises(um.UploadStop):
+            um.parse_args(["--lock"])
 
 
 if __name__ == "__main__":
